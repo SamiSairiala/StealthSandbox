@@ -52,6 +52,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 		float Damage = 25.0f;
 
+	// Aiming
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
+		float AimDeadZone = 150.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
+		float AimInterpSpeed = 20.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
+		float AimPlaneZ = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
+		float AimStopAngle = 1.5f;
+
+	bool GetMouseAimPoint(FVector& OutAimPoint) const;
+
 	void Move(const FInputActionValue& Value);
 	void Shoot();
 	void AimAtMouseCursor();

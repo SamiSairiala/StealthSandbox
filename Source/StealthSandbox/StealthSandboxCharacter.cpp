@@ -1,6 +1,7 @@
 #include "StealthSandboxCharacter.h"
 
 #include "Camera/CameraComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -50,6 +51,16 @@ void AStealthSandboxCharacter::BeginPlay()
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
 		PC->bShowMouseCursor = true;
+		PC->bEnableClickEvents = true;
+		PC->bEnableMouseOverEvents = true;
+
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+
+		PC->SetInputMode(InputMode);
+		PC->SetIgnoreMoveInput(false);
+		PC->SetIgnoreLookInput(false);
 
 		if (ULocalPlayer* LocalPlayer = PC->GetLocalPlayer())
 		{
@@ -126,17 +137,31 @@ void AStealthSandboxCharacter::Move(const FInputActionValue& Value)
 {
 	const FVector2D MoveValue = Value.Get<FVector2D>();
 
-	// Top-down world movement.
-	AddMovementInput(FVector::ForwardVector, MoveValue.Y);
-	AddMovementInput(FVector::RightVector, MoveValue.X);
-}
-
-void AStealthSandboxCharacter::AimAtMouseCursor()
-{
-	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (!PC)
+	if (MoveValue.IsNearlyZero())
 	{
 		return;
+	}
+
+	// Movement relative to where the player is currently aiming/facing.
+	FVector Forward = GetActorForwardVector();
+	FVector Right = GetActorRightVector();
+
+	Forward.Z = 0.0f;
+	Right.Z = 0.0f;
+
+	Forward.Normalize();
+	Right.Normalize();
+
+	AddMovementInput(Forward, MoveValue.Y);
+	AddMovementInput(Right, MoveValue.X);
+}
+
+bool AStealthSandboxCharacter::GetMouseAimPoint(FVector& OutAimPoint) const
+{
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return false;
 	}
 
 	FVector MouseWorldLocation;
@@ -144,30 +169,65 @@ void AStealthSandboxCharacter::AimAtMouseCursor()
 
 	if (!PC->DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
 	{
-		return;
+		return false;
 	}
-
-	// Aim on a flat plane at the player's height.
-	const float PlayerZ = GetActorLocation().Z;
 
 	if (FMath::IsNearlyZero(MouseWorldDirection.Z))
 	{
-		return;
+		return false;
 	}
 
-	const float DistanceToPlane = (PlayerZ - MouseWorldLocation.Z) / MouseWorldDirection.Z;
-	const FVector AimPoint = MouseWorldLocation + MouseWorldDirection * DistanceToPlane;
+	// Intersect mouse ray with a flat ground plane.
+	const float DistanceToPlane = (AimPlaneZ - MouseWorldLocation.Z) / MouseWorldDirection.Z;
+
+	if (DistanceToPlane < 0.0f)
+	{
+		return false;
+	}
+
+	OutAimPoint = MouseWorldLocation + MouseWorldDirection * DistanceToPlane;
+	return true;
+}
+
+void AStealthSandboxCharacter::AimAtMouseCursor()
+{
+	FVector AimPoint;
+	if (!GetMouseAimPoint(AimPoint))
+	{
+		return;
+	}
 
 	FVector Direction = AimPoint - GetActorLocation();
 	Direction.Z = 0.0f;
 
-	if (Direction.SizeSquared() < 100.0f)
+	// Prevent crazy spinning when cursor is very close to the player.
+	if (Direction.SizeSquared() < FMath::Square(AimDeadZone))
 	{
 		return;
 	}
 
-	const FRotator TargetRotation = Direction.Rotation();
-	SetActorRotation(FRotator(0.0f, TargetRotation.Yaw, 0.0f));
+	const FRotator CurrentRotation = GetActorRotation();
+	const FRotator TargetRotation = FRotator(0.0f, Direction.Rotation().Yaw, 0.0f);
+
+	const float YawDifference = FMath::Abs(
+		FMath::FindDeltaAngleDegrees(CurrentRotation.Yaw, TargetRotation.Yaw)
+	);
+
+	// If we are basically already aiming at the cursor, snap and stop smoothing.
+	if (YawDifference <= AimStopAngle)
+	{
+		SetActorRotation(TargetRotation);
+		return;
+	}
+
+	const FRotator SmoothedRotation = FMath::RInterpTo(
+		CurrentRotation,
+		TargetRotation,
+		GetWorld()->GetDeltaSeconds(),
+		AimInterpSpeed
+	);
+
+	SetActorRotation(SmoothedRotation);
 }
 
 void AStealthSandboxCharacter::Shoot()
@@ -178,23 +238,11 @@ void AStealthSandboxCharacter::Shoot()
 		return;
 	}
 
-	FVector MouseWorldLocation;
-	FVector MouseWorldDirection;
-
-	if (!PC->DeprojectMousePositionToWorld(MouseWorldLocation, MouseWorldDirection))
+	FVector AimPoint;
+	if (!GetMouseAimPoint(AimPoint))
 	{
 		return;
 	}
-
-	const float PlayerZ = GetActorLocation().Z;
-
-	if (FMath::IsNearlyZero(MouseWorldDirection.Z))
-	{
-		return;
-	}
-
-	const float DistanceToPlane = (PlayerZ - MouseWorldLocation.Z) / MouseWorldDirection.Z;
-	const FVector AimPoint = MouseWorldLocation + MouseWorldDirection * DistanceToPlane;
 
 	FVector Direction = AimPoint - GetActorLocation();
 	Direction.Z = 0.0f;
