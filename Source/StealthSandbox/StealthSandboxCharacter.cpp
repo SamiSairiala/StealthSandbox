@@ -1,4 +1,5 @@
 #include "StealthSandboxCharacter.h"
+#include "AI/EnemyGuardCharacter.h"
 
 #include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -376,7 +377,14 @@ void AStealthSandboxCharacter::Shoot()
 
 	if (bHit)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[Player] Shot hit: %s"), *GetNameSafe(ShotHit.GetActor()));
+		AActor* HitActor = ShotHit.GetActor();
+
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Shot hit: %s"), *GetNameSafe(HitActor));
+
+		if (AEnemyGuardCharacter* Guard = Cast<AEnemyGuardCharacter>(HitActor))
+		{
+			Guard->ApplyDamageToGuard(Damage);
+		}
 	}
 	else
 	{
