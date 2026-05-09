@@ -30,7 +30,14 @@ AStealthSandboxCharacter::AStealthSandboxCharacter()
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 1400.0f;
-	CameraBoom->SetRelativeRotation(FRotator(-70.0f, 0.0f, 0.0f));
+
+	// Important: camera keeps its own rotation instead of inheriting player yaw.
+	CameraBoom->SetUsingAbsoluteRotation(true);
+
+	CameraYaw = 0.0f;
+	CameraPitch = -70.0f;
+	CameraBoom->SetWorldRotation(FRotator(CameraPitch, CameraYaw, 0.0f));
+
 	CameraBoom->bDoCollisionTest = false;
 
 	TopDownCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("TopDownCamera"));
@@ -131,6 +138,93 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ShootAction is missing. Assign IA_Shoot in BP_ThirdPersonCharacter."));
 	}
+
+	if (CameraRotateHoldAction)
+	{
+		EnhancedInput->BindAction(
+			CameraRotateHoldAction,
+			ETriggerEvent::Started,
+			this,
+			&AStealthSandboxCharacter::StartCameraRotate
+		);
+
+		EnhancedInput->BindAction(
+			CameraRotateHoldAction,
+			ETriggerEvent::Completed,
+			this,
+			&AStealthSandboxCharacter::StopCameraRotate
+		);
+
+		EnhancedInput->BindAction(
+			CameraRotateHoldAction,
+			ETriggerEvent::Canceled,
+			this,
+			&AStealthSandboxCharacter::StopCameraRotate
+		);
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] CameraRotateHoldAction bound."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] CameraRotateHoldAction is missing. Assign IA_CameraRotateHold in BP_ThirdPersonCharacter."));
+	}
+
+	if (CameraRotateAction)
+	{
+		EnhancedInput->BindAction(
+			CameraRotateAction,
+			ETriggerEvent::Triggered,
+			this,
+			&AStealthSandboxCharacter::RotateCamera
+		);
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] CameraRotateAction bound."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] CameraRotateAction is missing. Assign IA_CameraRotate in BP_ThirdPersonCharacter."));
+	}
+}
+
+void AStealthSandboxCharacter::StartCameraRotate()
+{
+	bIsRotatingCamera = true;
+	UE_LOG(LogTemp, Warning, TEXT("[Camera] Started rotating camera."));
+}
+
+void AStealthSandboxCharacter::StopCameraRotate()
+{
+	bIsRotatingCamera = false;
+	UE_LOG(LogTemp, Warning, TEXT("[Camera] Stopped rotating camera."));
+}
+
+void AStealthSandboxCharacter::RotateCamera(const FInputActionValue& Value)
+{
+	if (!bIsRotatingCamera)
+	{
+		return;
+	}
+
+	const float MouseX = Value.Get<float>();
+
+	if (FMath::IsNearlyZero(MouseX))
+	{
+		return;
+	}
+
+	CameraYaw += MouseX * CameraRotationSpeed;
+
+	UpdateCameraRotation();
+}
+
+void AStealthSandboxCharacter::UpdateCameraRotation()
+{
+	if (!CameraBoom)
+	{
+		return;
+	}
+
+	CameraBoom->SetWorldRotation(FRotator(CameraPitch, CameraYaw, 0.0f));
 }
 
 void AStealthSandboxCharacter::Move(const FInputActionValue& Value)

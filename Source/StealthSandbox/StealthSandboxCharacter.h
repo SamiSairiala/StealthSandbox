@@ -45,6 +45,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> ShootAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+		TObjectPtr<UInputAction> CameraRotateHoldAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+		TObjectPtr<UInputAction> CameraRotateAction;
+
 	// Combat
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 		float ShootRange = 3000.0f;
@@ -65,9 +71,27 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
 		float AimStopAngle = 1.5f;
 
-	bool GetMouseAimPoint(FVector& OutAimPoint) const;
+	// Camera Rotation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rotation")
+		float CameraYaw = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rotation")
+		float CameraPitch = -70.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rotation")
+		float CameraRotationSpeed = 1.5f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Camera Rotation")
+		bool bIsRotatingCamera = false;
 
 	void Move(const FInputActionValue& Value);
 	void Shoot();
 	void AimAtMouseCursor();
+
+	void StartCameraRotate();
+	void StopCameraRotate();
+	void RotateCamera(const FInputActionValue& Value);
+	void UpdateCameraRotation();
+
+	bool GetMouseAimPoint(FVector& OutAimPoint) const;
 };
