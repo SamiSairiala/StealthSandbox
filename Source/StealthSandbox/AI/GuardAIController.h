@@ -3,11 +3,15 @@
 #include "CoreMinimal.h"
 #include "AIController.h"
 #include "Perception/AIPerceptionTypes.h"
+#include "Navigation/PathFollowingComponent.h"
 #include "GuardAIController.generated.h"
+
 
 class UAIPerceptionComponent;
 class UAISenseConfig_Sight;
 class UAISenseConfig_Hearing;
+class AEnemyGuardCharacter;
+class APatrolPoint;
 
 UENUM(BlueprintType)
 enum class EGuardState : uint8
@@ -32,6 +36,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void Tick(float DeltaTime) override;
+	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
 		TObjectPtr<UAIPerceptionComponent> PerceptionComp;
@@ -63,6 +68,27 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
 		bool bReachedSearchLocation = false;
 
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
+		TObjectPtr<AEnemyGuardCharacter> ControlledGuard;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Patrol")
+		float PatrolAcceptanceRadius = 80.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Patrol")
+		float PatrolWaitTime = 1.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
+		int32 CurrentPatrolIndex = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
+		float PatrolWaitTimer = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
+		bool bWaitingAtPatrolPoint = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
+		bool bPatrolMoveRequested = false;
+
 	UFUNCTION()
 		void OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 
@@ -73,4 +99,9 @@ protected:
 	void HandleSearchState(float DeltaTime);
 
 	void MoveToLastKnownLocation();
+
+	void HandlePatrolState(float DeltaTime);
+	void MoveToCurrentPatrolPoint();
+	APatrolPoint* GetCurrentPatrolPoint() const;
+	void AdvancePatrolPoint();
 };

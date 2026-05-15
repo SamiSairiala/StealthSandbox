@@ -4,6 +4,8 @@
 #include "GameFramework/Character.h"
 #include "EnemyGuardCharacter.generated.h"
 
+class APatrolPoint;
+
 UCLASS()
 class STEALTHSANDBOX_API AEnemyGuardCharacter : public ACharacter
 {
@@ -26,4 +28,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Guard")
 		void ApplyDamageToGuard(float DamageAmount);
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Guard-Patrol")
+		TArray<TObjectPtr<APatrolPoint>> PatrolPoints;
 };

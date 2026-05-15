@@ -5,6 +5,9 @@
 #include "Perception/AISenseConfig_Hearing.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
+#include "EnemyGuardCharacter.h"
+#include "PatrolPoint.h"
+#include "NavigationSystem.h"
 
 AGuardAIController::AGuardAIController()
 {
@@ -52,7 +55,21 @@ void AGuardAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
-	SetGuardState(EGuardState::Patrol);
+	ControlledGuard = Cast<AEnemyGuardCharacter>(InPawn);
+
+	if (!ControlledGuard)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[GuardAI] Possessed pawn is not EnemyGuardCharacter."));
+		return;
+	}
+
+	CurrentState = EGuardState::Patrol;
+
+	bWaitingAtPatrolPoint = false;
+	bPatrolMoveRequested = false;
+	PatrolWaitTimer = 0.0f;
+
+	UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Possessed guard. Starting patrol."));
 }
 
 void AGuardAIController::Tick(float DeltaTime)
@@ -61,6 +78,10 @@ void AGuardAIController::Tick(float DeltaTime)
 
 	switch (CurrentState)
 	{
+	case EGuardState::Patrol:
+		HandlePatrolState(DeltaTime);
+		break;
+
 	case EGuardState::Alert:
 		HandleAlertState();
 		break;
@@ -75,6 +96,48 @@ void AGuardAIController::Tick(float DeltaTime)
 
 	default:
 		break;
+	}
+}
+
+void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+	Super::OnMoveCompleted(RequestID, Result);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[GuardAI] Move completed. State: %d Result: %d"),
+		static_cast<int32>(CurrentState),
+		static_cast<int32>(Result.Code)
+	);
+
+	if (CurrentState == EGuardState::Patrol)
+	{
+		bPatrolMoveRequested = false;
+
+		if (Result.IsSuccess())
+		{
+			bWaitingAtPatrolPoint = true;
+			PatrolWaitTimer = 0.0f;
+
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[GuardAI] Reached patrol point %d. Waiting..."),
+				CurrentPatrolIndex
+			);
+		}
+		else
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[GuardAI] Patrol move failed/aborted. Trying next point.")
+			);
+
+			AdvancePatrolPoint();
+			MoveToCurrentPatrolPoint();
+		}
 	}
 }
 
@@ -141,6 +204,15 @@ void AGuardAIController::SetGuardState(EGuardState NewState)
 		bReachedSearchLocation = false;
 	}
 
+	if (CurrentState == EGuardState::Patrol)
+	{
+		CurrentTargetActor = nullptr;
+		bWaitingAtPatrolPoint = false;
+		bPatrolMoveRequested = false;
+		PatrolWaitTimer = 0.0f;
+		MoveToCurrentPatrolPoint();
+	}
+
 	UE_LOG(
 		LogTemp,
 		Warning,
@@ -167,7 +239,7 @@ void AGuardAIController::HandleInvestigateState()
 		return;
 	}
 
-	const float DistanceSquared = FVector::DistSquared(
+	const float DistanceSquared = FVector::DistSquared2D(
 		ControlledPawn->GetActorLocation(),
 		LastKnownLocation
 	);
@@ -190,7 +262,7 @@ void AGuardAIController::HandleSearchState(float DeltaTime)
 		return;
 	}
 
-	const float DistanceSquared = FVector::DistSquared(
+	const float DistanceSquared = FVector::DistSquared2D(
 		ControlledPawn->GetActorLocation(),
 		LastKnownLocation
 	);
@@ -244,5 +316,156 @@ void AGuardAIController::MoveToLastKnownLocation()
 		FColor::Yellow,
 		false,
 		2.0f
+	);
+}
+
+void AGuardAIController::HandlePatrolState(float DeltaTime)
+{
+	if (!ControlledGuard || ControlledGuard->PatrolPoints.Num() == 0)
+	{
+		return;
+	}
+
+	if (bWaitingAtPatrolPoint)
+	{
+		PatrolWaitTimer += DeltaTime;
+
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[GuardAI] Patrol wait timer: %.2f / %.2f"),
+			PatrolWaitTimer,
+			PatrolWaitTime
+		);
+
+		if (PatrolWaitTimer >= PatrolWaitTime)
+		{
+			AdvancePatrolPoint();
+			MoveToCurrentPatrolPoint();
+		}
+
+		return;
+	}
+
+	if (!bPatrolMoveRequested)
+	{
+		MoveToCurrentPatrolPoint();
+	}
+}
+
+void AGuardAIController::MoveToCurrentPatrolPoint()
+{
+	APatrolPoint* CurrentPoint = GetCurrentPatrolPoint();
+
+	if (!CurrentPoint)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GuardAI] No patrol point found."));
+		return;
+	}
+
+	UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(GetWorld());
+	if (!NavSystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[GuardAI] No navigation system found."));
+		return;
+	}
+
+	FNavLocation ProjectedLocation;
+	const bool bProjected = NavSystem->ProjectPointToNavigation(
+		CurrentPoint->GetActorLocation(),
+		ProjectedLocation,
+		FVector(300.0f, 300.0f, 500.0f)
+	);
+
+	if (!bProjected)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[GuardAI] Patrol point %d is not on/near navmesh: %s"),
+			CurrentPatrolIndex,
+			*CurrentPoint->GetActorLocation().ToString()
+		);
+		return;
+	}
+
+	const EPathFollowingRequestResult::Type MoveResult = MoveToLocation(
+		ProjectedLocation.Location,
+		PatrolAcceptanceRadius
+	);
+
+	if (MoveResult == EPathFollowingRequestResult::Failed)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[GuardAI] MoveTo patrol point %d FAILED. Location: %s"),
+			CurrentPatrolIndex,
+			*ProjectedLocation.Location.ToString()
+		);
+
+		bPatrolMoveRequested = false;
+		return;
+	}
+
+	bPatrolMoveRequested = true;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[GuardAI] Move request to patrol point %d: %s"),
+		CurrentPatrolIndex,
+		*ProjectedLocation.Location.ToString()
+	);
+
+	DrawDebugSphere(
+		GetWorld(),
+		ProjectedLocation.Location,
+		50.0f,
+		16,
+		FColor::Green,
+		false,
+		2.0f
+	);
+}
+
+APatrolPoint* AGuardAIController::GetCurrentPatrolPoint() const
+{
+	if (!ControlledGuard || ControlledGuard->PatrolPoints.Num() == 0)
+	{
+		return nullptr;
+	}
+
+	if (!ControlledGuard->PatrolPoints.IsValidIndex(CurrentPatrolIndex))
+	{
+		return nullptr;
+	}
+
+	return ControlledGuard->PatrolPoints[CurrentPatrolIndex].Get();
+}
+
+void AGuardAIController::AdvancePatrolPoint()
+{
+	if (!ControlledGuard || ControlledGuard->PatrolPoints.Num() == 0)
+	{
+		return;
+	}
+
+	CurrentPatrolIndex++;
+
+	if (CurrentPatrolIndex >= ControlledGuard->PatrolPoints.Num())
+	{
+		CurrentPatrolIndex = 0;
+	}
+
+	bWaitingAtPatrolPoint = false;
+	bPatrolMoveRequested = false;
+	PatrolWaitTimer = 0.0f;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[GuardAI] Advancing to patrol point %d."),
+		CurrentPatrolIndex
 	);
 }
