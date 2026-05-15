@@ -31,6 +31,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
 		TObjectPtr<UAIPerceptionComponent> PerceptionComp;
@@ -47,8 +48,29 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AI")
 		FVector LastKnownLocation = FVector::ZeroVector;
 
+	UPROPERTY(BlueprintReadOnly, Category = "AI")
+		TObjectPtr<AActor> CurrentTargetActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Movement")
+		float AcceptanceRadius = 80.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Movement")
+		float SearchWaitTime = 2.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
+		float SearchTimer = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
+		bool bReachedSearchLocation = false;
+
 	UFUNCTION()
 		void OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 
 	void SetGuardState(EGuardState NewState);
+
+	void HandleAlertState();
+	void HandleInvestigateState();
+	void HandleSearchState(float DeltaTime);
+
+	void MoveToLastKnownLocation();
 };
