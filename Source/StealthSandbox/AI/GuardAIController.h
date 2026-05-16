@@ -56,6 +56,43 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AI")
 		TObjectPtr<AActor> CurrentTargetActor;
 
+	// --------------------
+	// Suspicion
+	// --------------------
+
+	// Current suspicion amount. 0 = calm, 100 = fully detected.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI-Suspicion")
+		float Suspicion = 0.0f;
+
+	// How much suspicion increases per second while the guard can see the player.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
+		float SuspicionGainPerSecond = 45.0f;
+
+	// How much suspicion decreases per second after the guard loses sight before fully detecting the player.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
+		float SuspicionDecayPerSecond = 15.0f;
+
+	// When suspicion reaches this value, the guard fully detects the player and enters Alert.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
+		float SuspicionAlertThreshold = 100.0f;
+
+	// Below this value the guard calms down and returns to patrol. (TODO: Maybe change this to go to alert state?)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
+		float SuspicionCalmThreshold = 0.0f;
+
+	// True while sight perception currently says the guard can see the target.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI-Suspicion")
+		bool bCanCurrentlySeeTarget = false;
+
+	// The actor currently building suspicion. Usually the player.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI-Suspicion")
+		TObjectPtr<AActor> SuspicionTargetActor;
+
+	// How close the guard tries to get while only suspicious.
+	// Bigger value means the guard "checks the area" without needing to stand exactly on the player.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
+		float SuspiciousAcceptanceRadius = 180.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Movement")
 		float AcceptanceRadius = 80.0f;
 
@@ -104,4 +141,8 @@ protected:
 	void MoveToCurrentPatrolPoint();
 	APatrolPoint* GetCurrentPatrolPoint() const;
 	void AdvancePatrolPoint();
+	void HandleSuspiciousState(float DeltaTime);
+	void IncreaseSuspicion(float DeltaTime);
+	void DecaySuspicion(float DeltaTime);
+	void MoveToSuspiciousLocation();
 };
