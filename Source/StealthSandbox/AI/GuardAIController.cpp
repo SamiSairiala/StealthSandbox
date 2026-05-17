@@ -155,6 +155,7 @@ void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFoll
 		{
 			bReachedSuspiciousLocation = true;
 			SuspiciousWaitTimer = 0.0f;
+			StartLookAround();
 
 			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Reached suspicious last seen location. Checking area."));
 		}
@@ -164,6 +165,7 @@ void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFoll
 			// Treat it as if the guard checked nearby and then let suspicion continue decaying.
 			bReachedSuspiciousLocation = true;
 			SuspiciousWaitTimer = 0.0f;
+			StartLookAround();
 
 			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Could not fully reach suspicious location. Checking nearby area."));
 		}
@@ -179,6 +181,7 @@ void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFoll
 		{
 			bReachedSearchLocation = true;
 			SearchTimer = 0.0f;
+			StartLookAround();
 
 			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Reached last known location. Looking around..."));
 		}
@@ -188,6 +191,7 @@ void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFoll
 			// Let the guard spend a short search time, then return to patrol.
 			bReachedSearchLocation = true;
 			SearchTimer = 0.0f;
+			StartLookAround();
 
 			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Could not reach last known location. Searching nearby..."));
 		}
@@ -409,7 +413,7 @@ void AGuardAIController::HandleSearchState(float DeltaTime)
 	}
 
 	SearchTimer += DeltaTime;
-
+	UpdateLookAround(DeltaTime);
 	if (SearchTimer >= SearchWaitTime)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Search finished. Returning to patrol."));
@@ -475,6 +479,10 @@ void AGuardAIController::HandleSuspiciousState(float DeltaTime)
 
 	// After reaching the last seen spot, wait briefly as if the guard is checking the area.
 	SuspiciousWaitTimer += DeltaTime;
+
+	// After reaching the last seen spot, wait briefly as if the guard is checking the area.
+	SuspiciousWaitTimer += DeltaTime;
+	UpdateLookAround(DeltaTime);
 
 	if (SuspiciousWaitTimer >= SuspiciousWaitTime)
 	{
@@ -1075,4 +1083,49 @@ void AGuardAIController::UpdateLastKnownLocationFromSight()
 		bReachedSuspiciousLocation = false;
 		SuspiciousWaitTimer = 0.0f;
 	}
+}
+
+void AGuardAIController::StartLookAround()
+{
+	APawn* ControlledPawn = GetPawn();
+
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	// Remember the direction the guard was facing when it reached the search spot.
+	// The look-around animation rotates left/right around this base yaw.
+	LookAroundBaseYaw = ControlledPawn->GetActorRotation().Yaw;
+	LookAroundTimer = 0.0f;
+}
+
+void AGuardAIController::UpdateLookAround(float DeltaTime)
+{
+	APawn* ControlledPawn = GetPawn();
+
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	LookAroundTimer += DeltaTime;
+
+	// Sine wave gives a smooth left/right scanning motion:
+	// -1 = look left, 0 = center, 1 = look right.
+	const float ScanAlpha = FMath::Sin(LookAroundTimer * 2.0f);
+
+	const float TargetYaw = LookAroundBaseYaw + (ScanAlpha * LookAroundAngle);
+
+	const FRotator CurrentRotation = ControlledPawn->GetActorRotation();
+	const FRotator TargetRotation = FRotator(0.0f, TargetYaw, 0.0f);
+
+	const FRotator NewRotation = FMath::RInterpTo(
+		CurrentRotation,
+		TargetRotation,
+		DeltaTime,
+		LookAroundTurnSpeed
+	);
+
+	ControlledPawn->SetActorRotation(NewRotation);
 }

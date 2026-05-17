@@ -98,7 +98,7 @@ protected:
 
 	// Small wait at the suspicious location so the guard feels like it is checking the area.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
-		float SuspiciousWaitTime = 1.5f;
+		float SuspiciousWaitTime = 2.5f;
 
 	// Timer used while standing at the suspicious location.
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Suspicion")
@@ -123,7 +123,7 @@ protected:
 		float LastKnownAcceptanceRadius = 15.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Movement")
-		float SearchWaitTime = 2.0f;
+		float SearchWaitTime = 3.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
 		float SearchTimer = 0.0f;
@@ -135,6 +135,26 @@ protected:
 	// This stops us from spamming MoveToLocation every Tick.
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
 		bool bLastKnownMoveRequested = false;
+
+	// --------------------
+	// Look Around
+	// --------------------
+
+	// How fast the guard rotates while looking around.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-LookAround")
+		float LookAroundTurnSpeed = 120.0f;
+
+	// How wide the guard looks left/right from the direction it had when it reached the search spot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-LookAround")
+		float LookAroundAngle = 65.0f;
+
+	// Used to animate the left/right scan while searching.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-LookAround")
+		float LookAroundTimer = 0.0f;
+
+	// The yaw direction the guard had when it started looking around.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-LookAround")
+		float LookAroundBaseYaw = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
 		TObjectPtr<AEnemyGuardCharacter> ControlledGuard;
@@ -182,4 +202,6 @@ protected:
 	bool HasClearLineOfSightToTarget(AActor* TargetActor) const;
 	void UpdateLastKnownLocationFromSight();
 	void MoveToSuspiciousLastKnownLocation();
+	void StartLookAround();
+	void UpdateLookAround(float DeltaTime);
 };
