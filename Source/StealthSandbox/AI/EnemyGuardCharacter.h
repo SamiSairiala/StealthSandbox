@@ -5,6 +5,7 @@
 #include "EnemyGuardCharacter.generated.h"
 
 class APatrolPoint;
+class UTextRenderComponent;
 
 UCLASS()
 class STEALTHSANDBOX_API AEnemyGuardCharacter : public ACharacter
@@ -25,6 +26,15 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Guard")
 		float CurrentHealth = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Guard-Debug")
+		TObjectPtr<UTextRenderComponent> DebugText;
+
+	UFUNCTION(BlueprintCallable, Category = "Guard-Debug")
+		void SetDebugText(const FString& NewText);
+
+	// Rotates the debug text toward the player camera so it stays readable in-game.
+	void FaceDebugTextToCamera();
 
 	UFUNCTION(BlueprintCallable, Category = "Guard")
 		void ApplyDamageToGuard(float DamageAmount);

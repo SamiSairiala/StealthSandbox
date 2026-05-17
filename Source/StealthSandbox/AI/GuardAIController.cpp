@@ -101,6 +101,7 @@ void AGuardAIController::Tick(float DeltaTime)
 	default:
 		break;
 	}
+	UpdateGuardDebugText();
 }
 
 void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
@@ -664,4 +665,49 @@ void AGuardAIController::AdvancePatrolPoint()
 		TEXT("[GuardAI] Advancing to patrol point %d."),
 		CurrentPatrolIndex
 	);
+}
+
+FString AGuardAIController::GetStateName() const
+{
+	switch (CurrentState)
+	{
+	case EGuardState::Patrol:
+		return TEXT("Patrol");
+
+	case EGuardState::Suspicious:
+		return TEXT("Suspicious");
+
+	case EGuardState::Investigate:
+		return TEXT("Investigate");
+
+	case EGuardState::Alert:
+		return TEXT("Alert");
+
+	case EGuardState::Search:
+		return TEXT("Search");
+
+	case EGuardState::Return:
+		return TEXT("Return");
+
+	default:
+		return TEXT("Unknown");
+	}
+}
+
+void AGuardAIController::UpdateGuardDebugText()
+{
+	if (!ControlledGuard)
+	{
+		return;
+	}
+
+	const FString DebugString = FString::Printf(
+		TEXT("State: %s\nSuspicion: %.0f / %.0f\nPatrol: %d"),
+		*GetStateName(),
+		Suspicion,
+		SuspicionAlertThreshold,
+		CurrentPatrolIndex
+	);
+
+	ControlledGuard->SetDebugText(DebugString);
 }

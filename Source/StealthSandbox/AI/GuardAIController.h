@@ -145,4 +145,6 @@ protected:
 	void IncreaseSuspicion(float DeltaTime);
 	void DecaySuspicion(float DeltaTime);
 	void MoveToSuspiciousLocation();
+	FString GetStateName() const;
+	void UpdateGuardDebugText();
 };
