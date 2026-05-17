@@ -56,9 +56,9 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AI")
 		TObjectPtr<AActor> CurrentTargetActor;
 
-	// --------------------
+	
 	// Suspicion
-	// --------------------
+	// 
 
 	// Current suspicion amount. 0 = calm, 100 = fully detected.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI-Suspicion")
@@ -136,9 +136,9 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
 		bool bLastKnownMoveRequested = false;
 
-	// --------------------
+	
 	// Look Around
-	// --------------------
+	// 
 
 	// How fast the guard rotates while looking around.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-LookAround")

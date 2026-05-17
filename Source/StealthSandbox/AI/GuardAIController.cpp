@@ -1112,7 +1112,7 @@ void AGuardAIController::UpdateLookAround(float DeltaTime)
 	LookAroundTimer += DeltaTime;
 
 	// Sine wave gives a smooth left/right scanning motion:
-	// -1 = look left, 0 = center, 1 = look right.
+	// -1 = look left 0 = center 1 = look right.
 	const float ScanAlpha = FMath::Sin(LookAroundTimer * 2.0f);
 
 	const float TargetYaw = LookAroundBaseYaw + (ScanAlpha * LookAroundAngle);
