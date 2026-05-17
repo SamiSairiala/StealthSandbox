@@ -88,13 +88,39 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI-Suspicion")
 		TObjectPtr<AActor> SuspicionTargetActor;
 
+	// If suspicion is high enough and we lose sight, the guard walks to the last seen spot.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Suspicion")
+		bool bSuspiciousMoveRequested = false;
+
+	// True once the guard has reached the suspicious investigation point.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Suspicion")
+		bool bReachedSuspiciousLocation = false;
+
+	// Small wait at the suspicious location so the guard feels like it is checking the area.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
+		float SuspiciousWaitTime = 1.5f;
+
+	// Timer used while standing at the suspicious location.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Suspicion")
+		float SuspiciousWaitTimer = 0.0f;
+
 	// How close the guard tries to get while only suspicious.
 	// Bigger value means the guard "checks the area" without needing to stand exactly on the player.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
 		float SuspiciousAcceptanceRadius = 180.0f;
 
+	// Suspicion must reach this amount before the guard physically checks the last seen position.
+	// This prevents tiny one-frame peeks from pulling the guard away from patrol.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Suspicion")
+		float SuspicionInvestigateThreshold = 25.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Movement")
 		float AcceptanceRadius = 80.0f;
+
+	// How close the guard needs to get to a last-known/suspicious investigation point.
+	// This should be smaller than SuspiciousAcceptanceRadius, otherwise the guard stops too far away from the marker.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Movement")
+		float LastKnownAcceptanceRadius = 15.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Movement")
 		float SearchWaitTime = 2.0f;
@@ -104,6 +130,11 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
 		bool bReachedSearchLocation = false;
+
+	// True after we have requested a move to the suspicious/search location.
+	// This stops us from spamming MoveToLocation every Tick.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
+		bool bLastKnownMoveRequested = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
 		TObjectPtr<AEnemyGuardCharacter> ControlledGuard;
@@ -147,4 +178,8 @@ protected:
 	void MoveToSuspiciousLocation();
 	FString GetStateName() const;
 	void UpdateGuardDebugText();
+	AActor* GetBestKnownTarget() const;
+	bool HasClearLineOfSightToTarget(AActor* TargetActor) const;
+	void UpdateLastKnownLocationFromSight();
+	void MoveToSuspiciousLastKnownLocation();
 };

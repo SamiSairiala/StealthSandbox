@@ -76,6 +76,10 @@ void AGuardAIController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// AI Perception events only fire when perception changes.
+	// This keeps LastKnownLocation accurate while the target is actually visible.
+	UpdateLastKnownLocationFromSight();
+
 	switch (CurrentState)
 	{
 	case EGuardState::Patrol:
@@ -134,14 +138,58 @@ void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFoll
 		}
 		else
 		{
-			UE_LOG(
-				LogTemp,
-				Warning,
-				TEXT("[GuardAI] Patrol move failed/aborted. Trying next point.")
-			);
+			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Patrol move failed/aborted. Trying next point."));
 
 			AdvancePatrolPoint();
 			MoveToCurrentPatrolPoint();
+		}
+
+		return;
+	}
+
+	if (CurrentState == EGuardState::Suspicious && bSuspiciousMoveRequested)
+	{
+		bSuspiciousMoveRequested = false;
+
+		if (Result.IsSuccess())
+		{
+			bReachedSuspiciousLocation = true;
+			SuspiciousWaitTimer = 0.0f;
+
+			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Reached suspicious last seen location. Checking area."));
+		}
+		else
+		{
+			// If pathing fails, do not let the guard get stuck forever.
+			// Treat it as if the guard checked nearby and then let suspicion continue decaying.
+			bReachedSuspiciousLocation = true;
+			SuspiciousWaitTimer = 0.0f;
+
+			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Could not fully reach suspicious location. Checking nearby area."));
+		}
+
+		return;
+	}
+
+	if ((CurrentState == EGuardState::Search || CurrentState == EGuardState::Investigate) && bLastKnownMoveRequested)
+	{
+		bLastKnownMoveRequested = false;
+
+		if (Result.IsSuccess())
+		{
+			bReachedSearchLocation = true;
+			SearchTimer = 0.0f;
+
+			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Reached last known location. Looking around..."));
+		}
+		else
+		{
+			// If the exact location failed, do not get stuck forever.
+			// Let the guard spend a short search time, then return to patrol.
+			bReachedSearchLocation = true;
+			SearchTimer = 0.0f;
+
+			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Could not reach last known location. Searching nearby..."));
 		}
 	}
 }
@@ -153,16 +201,16 @@ void AGuardAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus St
 		return;
 	}
 
-	LastKnownLocation = Stimulus.StimulusLocation;
-
 	const FString SenseName = Stimulus.Type.Name.ToString();
 
 	if (Stimulus.WasSuccessfullySensed())
 	{
 		if (SenseName.Contains(TEXT("Sight")))
 		{
-			// The guard has visual contact, but we do not instantly alert.
-			// Suspicion gives the player a small chance to hide before a full chase starts.
+			// Store the real player position while we can actually see them.
+			// When sight is lost later, we keep this as the last known position.
+			LastKnownLocation = Actor->GetActorLocation();
+
 			SuspicionTargetActor = Actor;
 			CurrentTargetActor = Actor;
 			bCanCurrentlySeeTarget = true;
@@ -181,6 +229,9 @@ void AGuardAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus St
 		}
 		else if (SenseName.Contains(TEXT("Hearing")))
 		{
+			// For hearing, the stimulus location is the important point.
+			LastKnownLocation = Stimulus.StimulusLocation;
+
 			UE_LOG(
 				LogTemp,
 				Warning,
@@ -189,8 +240,6 @@ void AGuardAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus St
 				*LastKnownLocation.ToString()
 			);
 
-			// A fully alerted guard should not stop chasing just because it heard a noise.
-			// But if it is patrolling/suspicious/searching, noise should pull it into investigation.
 			if (CurrentState != EGuardState::Alert)
 			{
 				CurrentTargetActor = nullptr;
@@ -206,13 +255,14 @@ void AGuardAIController::OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus St
 	{
 		if (SenseName.Contains(TEXT("Sight")))
 		{
-			// If the guard was only suspicious, losing sight should let suspicion decay.
-			// If the guard was fully alerted, losing sight starts a last-known-location search.
+			// Do NOT overwrite LastKnownLocation here.
+			// We want the last position where the guard actually saw the player.
 			UE_LOG(
 				LogTemp,
 				Warning,
-				TEXT("[GuardAI] Lost sight of: %s"),
-				*GetNameSafe(Actor)
+				TEXT("[GuardAI] Lost sight of: %s. Last known location: %s"),
+				*GetNameSafe(Actor),
+				*LastKnownLocation.ToString()
 			);
 
 			bCanCurrentlySeeTarget = false;
@@ -243,21 +293,22 @@ void AGuardAIController::SetGuardState(EGuardState NewState)
 
 	if (CurrentState == EGuardState::Suspicious)
 	{
-		// Suspicious is not a movement state yet.
-		// The guard pauses its patrol and waits to confirm if it really saw the player.
+		// Fresh suspicious state: not yet moved to the last seen spot.
+		bSuspiciousMoveRequested = false;
+		bReachedSuspiciousLocation = false;
+		SuspiciousWaitTimer = 0.0f;
+
+		// Suspicious state is not patrol.
 		bPatrolMoveRequested = false;
 		bWaitingAtPatrolPoint = false;
 		PatrolWaitTimer = 0.0f;
-
-		SearchTimer = 0.0f;
-		bReachedSearchLocation = false;
 	}
 
 	if (CurrentState == EGuardState::Investigate)
 	{
-		// Investigate uses the last known/noise location.
 		SearchTimer = 0.0f;
 		bReachedSearchLocation = false;
+		bLastKnownMoveRequested = false;
 
 		bPatrolMoveRequested = false;
 		bWaitingAtPatrolPoint = false;
@@ -266,9 +317,9 @@ void AGuardAIController::SetGuardState(EGuardState NewState)
 
 	if (CurrentState == EGuardState::Search)
 	{
-		// Search starts after losing the player or after reaching a noise location.
 		SearchTimer = 0.0f;
 		bReachedSearchLocation = false;
+		bLastKnownMoveRequested = false;
 
 		bPatrolMoveRequested = false;
 		bWaitingAtPatrolPoint = false;
@@ -300,7 +351,12 @@ void AGuardAIController::SetGuardState(EGuardState NewState)
 
 		bWaitingAtPatrolPoint = false;
 		bPatrolMoveRequested = false;
+		bLastKnownMoveRequested = false;
 		PatrolWaitTimer = 0.0f;
+
+		bSuspiciousMoveRequested = false;
+		bReachedSuspiciousLocation = false;
+		SuspiciousWaitTimer = 0.0f;
 
 		MoveToCurrentPatrolPoint();
 	}
@@ -328,22 +384,10 @@ void AGuardAIController::HandleAlertState()
 
 void AGuardAIController::HandleInvestigateState()
 {
-	APawn* ControlledPawn = GetPawn();
-	if (!ControlledPawn)
-	{
-		return;
-	}
+	// Investigate means the guard heard something and should go check that location.
+	// We request the move once, then OnMoveCompleted tells us when it arrived.
 
-	const float DistanceSquared = FVector::DistSquared2D(
-		ControlledPawn->GetActorLocation(),
-		LastKnownLocation
-	);
-
-	if (DistanceSquared <= FMath::Square(AcceptanceRadius))
-	{
-		SetGuardState(EGuardState::Search);
-	}
-	else
+	if (!bLastKnownMoveRequested)
 	{
 		MoveToLastKnownLocation();
 	}
@@ -351,27 +395,12 @@ void AGuardAIController::HandleInvestigateState()
 
 void AGuardAIController::HandleSearchState(float DeltaTime)
 {
-	APawn* ControlledPawn = GetPawn();
-	if (!ControlledPawn)
-	{
-		return;
-	}
-
-	const float DistanceSquared = FVector::DistSquared2D(
-		ControlledPawn->GetActorLocation(),
-		LastKnownLocation
-	);
+	// Search means the guard is checking the last place it saw/heard the player.
+	// First it moves there. Once movement completes, it waits and "looks around".
 
 	if (!bReachedSearchLocation)
 	{
-		if (DistanceSquared <= FMath::Square(AcceptanceRadius))
-		{
-			bReachedSearchLocation = true;
-			SearchTimer = 0.0f;
-
-			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Reached search location. Searching..."));
-		}
-		else
+		if (!bLastKnownMoveRequested)
 		{
 			MoveToLastKnownLocation();
 		}
@@ -390,22 +419,67 @@ void AGuardAIController::HandleSearchState(float DeltaTime)
 
 void AGuardAIController::HandleSuspiciousState(float DeltaTime)
 {
-	// Suspicious means "I think I saw something".
-	// Instead of freezing in place, the guard cautiously moves toward the last place it saw the target.
-	// This makes corner-peeking feel more believable.
+	// Suspicious means:
+	// "I saw something, but I am not fully alerted yet."
+	//
+	// If the target stays visible, suspicion rises.
+	// If the target hides, suspicion decays.
+	// Once suspicion is meaningful enough, the guard walks to the last seen spot
+	// and checks the area instead of just standing still.
 
 	if (bCanCurrentlySeeTarget && SuspicionTargetActor)
 	{
-		// While the guard can still see the player, suspicion rises and the guard creeps closer.
 		IncreaseSuspicion(DeltaTime);
-		MoveToSuspiciousLocation();
+
+		// While the guard can still see the target, it can cautiously move closer,
+		// but only after suspicion has passed the "worth checking" threshold.
+		if (Suspicion >= SuspicionInvestigateThreshold)
+		{
+			MoveToActor(SuspicionTargetActor, SuspiciousAcceptanceRadius);
+		}
+
+		// Since we can see the target again, reset the old "go check last seen spot" flow.
+		bSuspiciousMoveRequested = false;
+		bReachedSuspiciousLocation = false;
+		SuspiciousWaitTimer = 0.0f;
+
+		return;
 	}
-	else
+
+	// If we are here, the guard no longer has visual contact.
+	DecaySuspicion(DeltaTime);
+
+	// DecaySuspicion can set the state back to Patrol.
+	// If that happened, stop this suspicious logic immediately.
+	if (CurrentState != EGuardState::Suspicious)
 	{
-		// If the player hides before full detection, the guard still checks the last seen location
-		// while suspicion fades. This creates the "peek around the corner" behavior.
-		DecaySuspicion(DeltaTime);
-		MoveToSuspiciousLocation();
+		return;
+	}
+
+	// If suspicion is still low, do not leave patrol route just because of a tiny glimpse.
+	if (Suspicion < SuspicionInvestigateThreshold)
+	{
+		return;
+	}
+
+	// Suspicion is high enough: go check the last seen/orange-sphere location.
+	if (!bReachedSuspiciousLocation)
+	{
+		if (!bSuspiciousMoveRequested)
+		{
+			MoveToSuspiciousLastKnownLocation();
+		}
+
+		return;
+	}
+
+	// After reaching the last seen spot, wait briefly as if the guard is checking the area.
+	SuspiciousWaitTimer += DeltaTime;
+
+	if (SuspiciousWaitTimer >= SuspiciousWaitTime)
+	{
+		// Nothing special needed here.
+		// Suspicion will keep decaying, and once it reaches 0, DecaySuspicion returns to Patrol.
 	}
 }
 
@@ -469,17 +543,73 @@ void AGuardAIController::MoveToLastKnownLocation()
 		return;
 	}
 
-	MoveToLocation(LastKnownLocation, AcceptanceRadius);
+	UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(GetWorld());
+	if (!NavSystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[GuardAI] No navigation system found."));
+		return;
+	}
+
+	FNavLocation ProjectedLocation;
+	const bool bProjected = NavSystem->ProjectPointToNavigation(
+		LastKnownLocation,
+		ProjectedLocation,
+		FVector(1000.0f, 1000.0f, 1000.0f)
+	);
+
+	if (!bProjected)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[GuardAI] Last known location is not on/near navmesh: %s"),
+			*LastKnownLocation.ToString()
+		);
+
+		DrawDebugSphere(
+			GetWorld(),
+			LastKnownLocation,
+			70.0f,
+			16,
+			FColor::Red,
+			false,
+			3.0f
+		);
+
+		return;
+	}
+
+	const EPathFollowingRequestResult::Type MoveResult = MoveToLocation(
+		ProjectedLocation.Location,
+		LastKnownAcceptanceRadius
+	);
+
+	if (MoveResult == EPathFollowingRequestResult::Failed)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[GuardAI] MoveTo last known location FAILED: %s"),
+			*ProjectedLocation.Location.ToString()
+		);
+
+		bLastKnownMoveRequested = false;
+		return;
+	}
+
+	bLastKnownMoveRequested = true;
 
 	UE_LOG(
 		LogTemp,
 		Warning,
-		TEXT("[GuardAI] Moving to last known location: %s"),
-		*LastKnownLocation.ToString()
+		TEXT("[GuardAI] Moving to last known location: %s with radius %.1f"),
+		*ProjectedLocation.Location.ToString(),
+		LastKnownAcceptanceRadius
 	);
+
 	DrawDebugSphere(
 		GetWorld(),
-		LastKnownLocation,
+		ProjectedLocation.Location,
 		50.0f,
 		16,
 		FColor::Yellow,
@@ -548,6 +678,88 @@ void AGuardAIController::MoveToSuspiciousLocation()
 			0.2f
 		);
 	}
+}
+
+void AGuardAIController::MoveToSuspiciousLastKnownLocation()
+{
+	if (LastKnownLocation.IsNearlyZero())
+	{
+		return;
+	}
+
+	UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(GetWorld());
+	if (!NavSystem)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[GuardAI] No navigation system found for suspicious move."));
+		return;
+	}
+
+	FNavLocation ProjectedLocation;
+	const bool bProjected = NavSystem->ProjectPointToNavigation(
+		LastKnownLocation,
+		ProjectedLocation,
+		FVector(1000.0f, 1000.0f, 1000.0f)
+	);
+
+	if (!bProjected)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[GuardAI] Suspicious last known location is not on/near navmesh: %s"),
+			*LastKnownLocation.ToString()
+		);
+
+		DrawDebugSphere(
+			GetWorld(),
+			LastKnownLocation,
+			50.0f,
+			12,
+			FColor::Red,
+			false,
+			2.0f
+		);
+
+		return;
+	}
+
+	const EPathFollowingRequestResult::Type MoveResult = MoveToLocation(
+		ProjectedLocation.Location,
+		LastKnownAcceptanceRadius
+	);
+
+	if (MoveResult == EPathFollowingRequestResult::Failed)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("[GuardAI] MoveTo suspicious location FAILED: %s"),
+			*ProjectedLocation.Location.ToString()
+		);
+
+		bSuspiciousMoveRequested = false;
+		return;
+	}
+
+	bSuspiciousMoveRequested = true;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[GuardAI] Moving to suspicious last seen location: %s with radius %.1f"),
+		*ProjectedLocation.Location.ToString(),
+		LastKnownAcceptanceRadius
+	);
+
+	DrawDebugSphere(
+		GetWorld(),
+		ProjectedLocation.Location,
+		45.0f,
+		12,
+		FColor::Orange,
+		false,
+		2.0f
+	);
 }
 
 void AGuardAIController::MoveToCurrentPatrolPoint()
@@ -710,4 +922,157 @@ void AGuardAIController::UpdateGuardDebugText()
 	);
 
 	ControlledGuard->SetDebugText(DebugString);
+}
+
+AActor* AGuardAIController::GetBestKnownTarget() const
+{
+	// SuspicionTargetActor is used before full Alert.
+	// CurrentTargetActor is used once the guard is Alert/chasing.
+	if (SuspicionTargetActor)
+	{
+		return SuspicionTargetActor;
+	}
+
+	return CurrentTargetActor;
+}
+
+bool AGuardAIController::HasClearLineOfSightToTarget(AActor* TargetActor) const
+{
+	if (!TargetActor)
+	{
+		return false;
+	}
+
+	const APawn* ControlledPawn = GetPawn();
+	if (!ControlledPawn)
+	{
+		return false;
+	}
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(ControlledPawn);
+
+	const FVector Start = ControlledPawn->GetActorLocation() + FVector(0.0f, 0.0f, 70.0f);
+	const FVector End = TargetActor->GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		Hit,
+		Start,
+		End,
+		ECC_Visibility,
+		Params
+	);
+
+	// No hit means nothing blocked the view.
+	if (!bHit)
+	{
+		return true;
+	}
+
+	// If the first thing hit is the target, the guard has a clear view.
+	return Hit.GetActor() == TargetActor;
+}
+
+void AGuardAIController::UpdateLastKnownLocationFromSight()
+{
+	AActor* TargetActor = GetBestKnownTarget();
+
+	if (!TargetActor)
+	{
+		return;
+	}
+
+	// If perception already says we cannot see the target, do not keep updating last known position.
+	if (!bCanCurrentlySeeTarget)
+	{
+		return;
+	}
+
+	APawn* ControlledPawn = GetPawn();
+
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(ControlledPawn);
+
+	const FVector Start = ControlledPawn->GetActorLocation() + FVector(0.0f, 0.0f, 70.0f);
+	const FVector End = TargetActor->GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		Hit,
+		Start,
+		End,
+		ECC_Visibility,
+		Params
+	);
+
+	const bool bClearView =
+		!bHit ||
+		Hit.GetActor() == TargetActor;
+
+	if (bClearView)
+	{
+		// While the target is really visible, keep refreshing the true last seen position.
+		LastKnownLocation = TargetActor->GetActorLocation();
+
+		DrawDebugSphere(
+			GetWorld(),
+			LastKnownLocation,
+			30.0f,
+			8,
+			FColor::Cyan,
+			false,
+			0.05f
+		);
+
+		return;
+	}
+
+	// If we got here, AI Perception may still think it sees the player,
+	// but our own trace says a wall/object is blocking the view.
+	// Treat this as an immediate "soft lost sight".
+	bCanCurrentlySeeTarget = false;
+
+	// Use the obstruction point as the "lost sight" position.
+	// This tends to put the investigation marker near the corner/wall edge,
+	// instead of behind the wall where the player currently is.
+	LastKnownLocation = Hit.ImpactPoint;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[GuardAI] Manual line of sight lost. New last known location: %s"),
+		*LastKnownLocation.ToString()
+	);
+
+	DrawDebugSphere(
+		GetWorld(),
+		LastKnownLocation,
+		45.0f,
+		12,
+		FColor::Orange,
+		false,
+		2.0f
+	);
+
+	if (CurrentState == EGuardState::Alert)
+	{
+		// Fully alerted guard should immediately search the last visible/corner position.
+		CurrentTargetActor = nullptr;
+		SetGuardState(EGuardState::Search);
+		MoveToLastKnownLocation();
+	}
+	else if (CurrentState == EGuardState::Suspicious)
+	{
+		// Suspicious guard should now let HandleSuspiciousState move to this point.
+		// Reset these so the suspicious state can request a fresh move.
+		bSuspiciousMoveRequested = false;
+		bReachedSuspiciousLocation = false;
+		SuspiciousWaitTimer = 0.0f;
+	}
 }
