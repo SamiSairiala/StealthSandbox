@@ -10,6 +10,7 @@ class UInputMappingContext;
 class UInputAction;
 class UAIPerceptionStimuliSourceComponent;
 struct FInputActionValue;
+class USpotLightComponent;
 
 UCLASS(config = Game)
 class STEALTHSANDBOX_API AStealthSandboxCharacter : public ACharacter
@@ -83,6 +84,36 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Camera Rotation")
 		bool bIsRotatingCamera = false;
+
+	// Player Vision
+	// 
+
+	// A forward-facing light cone used to show what the player can clearly see.
+	// Since the player already rotates toward the mouse, this naturally follows aim direction.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vision")
+		TObjectPtr<USpotLightComponent> VisionLight;
+
+	// Main brightness of the vision cone.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float VisionLightIntensity = 80000.0f;
+
+	// How far the player can see.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float VisionLightRange = 1800.0f;
+
+	// Bright center of the vision cone.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float VisionInnerConeAngle = 18.0f;
+
+	// Outer soft edge of the vision cone.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float VisionOuterConeAngle = 38.0f;
+
+	// Slight downward tilt so the light hits the floor in front of the player.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float VisionPitch = -20.0f;
+
+	void ApplyVisionLightSettings();
 
 	void Move(const FInputActionValue& Value);
 	void Shoot();

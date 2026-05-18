@@ -1,6 +1,6 @@
 #include "StealthSandboxCharacter.h"
 #include "AI/EnemyGuardCharacter.h"
-
+#include "Components/SpotLightComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -45,6 +45,20 @@ AStealthSandboxCharacter::AStealthSandboxCharacter()
 	TopDownCamera->SetupAttachment(CameraBoom);
 	TopDownCamera->bUsePawnControlRotation = false;
 
+	// Forward-facing vision cone.
+	// This is the first version of the "player only sees in a cone" mechanic.
+	// TODO: Later replace/extend this with a post-process mask or fog-of-war.
+	VisionLight = CreateDefaultSubobject<USpotLightComponent>(TEXT("VisionLight"));
+	VisionLight->SetupAttachment(RootComponent);
+	VisionLight->SetRelativeLocation(FVector(0.0f, 0.0f, 120.0f));
+	VisionLight->SetRelativeRotation(FRotator(VisionPitch, 0.0f, 0.0f));
+
+	VisionLight->SetIntensity(VisionLightIntensity);
+	VisionLight->SetAttenuationRadius(VisionLightRange);
+	VisionLight->SetInnerConeAngle(VisionInnerConeAngle);
+	VisionLight->SetOuterConeAngle(VisionOuterConeAngle);
+	VisionLight->SetCastShadows(true);
+
 	// Allows AI Perception guards to see/hear this player.
 	StimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("StimuliSource"));
 	StimuliSource->RegisterForSense(UAISense_Sight::StaticClass());
@@ -55,6 +69,8 @@ AStealthSandboxCharacter::AStealthSandboxCharacter()
 void AStealthSandboxCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	ApplyVisionLightSettings();
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
@@ -401,4 +417,19 @@ void AStealthSandboxCharacter::Shoot()
 	);
 
 	UE_LOG(LogTemp, Warning, TEXT("[Player] Gunshot noise reported"));
+}
+
+void AStealthSandboxCharacter::ApplyVisionLightSettings()
+{
+	if (!VisionLight)
+	{
+		return;
+	}
+
+	// Keep all vision tuning in one place so we can quickly tweak it from the Blueprint defaults.
+	VisionLight->SetIntensity(VisionLightIntensity);
+	VisionLight->SetAttenuationRadius(VisionLightRange);
+	VisionLight->SetInnerConeAngle(VisionInnerConeAngle);
+	VisionLight->SetOuterConeAngle(VisionOuterConeAngle);
+	VisionLight->SetRelativeRotation(FRotator(VisionPitch, 0.0f, 0.0f));
 }
