@@ -12,6 +12,7 @@ class UAISenseConfig_Sight;
 class UAISenseConfig_Hearing;
 class AEnemyGuardCharacter;
 class APatrolPoint;
+class AStealthSandboxCharacter;
 
 UENUM(BlueprintType)
 enum class EGuardState : uint8
@@ -136,6 +137,25 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Movement")
 		bool bLastKnownMoveRequested = false;
 
+	// Attack
+	// 
+
+	// How close the enemy must be before it can attack the player.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Attack")
+		float AttackRange = 160.0f;
+
+	// Damage dealt per attack.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Attack")
+		float AttackDamage = 25.0f;
+
+	// Time between attacks.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Attack")
+		float AttackCooldown = 1.25f;
+
+	// Counts down while the enemy is waiting for the next attack.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Attack")
+		float AttackCooldownTimer = 0.0f;
+
 	
 	// Look Around
 	// 
@@ -204,4 +224,7 @@ protected:
 	void MoveToSuspiciousLastKnownLocation();
 	void StartLookAround();
 	void UpdateLookAround(float DeltaTime);
+	void TryAttackTarget();
+	bool IsTargetInAttackRange() const;
+	void FaceTarget(AActor* TargetActor);
 };

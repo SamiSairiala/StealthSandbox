@@ -20,6 +20,14 @@ class STEALTHSANDBOX_API AStealthSandboxCharacter : public ACharacter
 public:
 	AStealthSandboxCharacter();
 
+	// Called by enemy AI when the player is attacked.
+	UFUNCTION(BlueprintCallable, Category = "Health")
+		void TakeDamageFromEnemy(float DamageAmount);
+
+	// Used by enemy AI so it does not keep attacking a dead player.
+	UFUNCTION(BlueprintCallable, Category = "Health")
+		bool IsDead() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -59,6 +67,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 		float Damage = 25.0f;
 
+	// Health
+	// 
+
+	// Simple player health for the prototype.
+	// Later this can become a full survival health/injury system.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+		float MaxHealth = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+		float CurrentHealth = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+		bool bIsDead = false;
+
+	
 	// Aiming
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
 		float AimDeadZone = 150.0f;
@@ -125,4 +148,6 @@ protected:
 	void UpdateCameraRotation();
 
 	bool GetMouseAimPoint(FVector& OutAimPoint) const;
+	void HandleDeath();
+
 };

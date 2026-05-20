@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "EnemyGuardCharacter.h"
+#include "../StealthSandboxCharacter.h" // This ../ before means it go up one folder from AI then find StealthSandboxCharacter.h
 #include "PatrolPoint.h"
 #include "NavigationSystem.h"
 
@@ -80,6 +81,11 @@ void AGuardAIController::OnPossess(APawn* InPawn)
 void AGuardAIController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (AttackCooldownTimer > 0.0f)
+	{
+		AttackCooldownTimer -= DeltaTime;
+	}
 
 	// AI Perception events only fire when perception changes.
 	// This keeps LastKnownLocation accurate while the target is actually visible.
@@ -388,6 +394,22 @@ void AGuardAIController::HandleAlertState()
 		return;
 	}
 
+	AStealthSandboxCharacter* PlayerTarget = Cast<AStealthSandboxCharacter>(CurrentTargetActor);
+
+	if (PlayerTarget && PlayerTarget->IsDead())
+	{
+		StopMovement();
+		return;
+	}
+
+	if (IsTargetInAttackRange())
+	{
+		StopMovement();
+		FaceTarget(CurrentTargetActor);
+		TryAttackTarget();
+		return;
+	}
+
 	MoveToActor(CurrentTargetActor, AcceptanceRadius);
 }
 
@@ -482,8 +504,7 @@ void AGuardAIController::HandleSuspiciousState(float DeltaTime)
 		return;
 	}
 
-	// After reaching the last seen spot, wait briefly as if the guard is checking the area.
-	SuspiciousWaitTimer += DeltaTime;
+	
 
 	// After reaching the last seen spot, wait briefly as if the guard is checking the area.
 	SuspiciousWaitTimer += DeltaTime;
@@ -1170,5 +1191,84 @@ void AGuardAIController::UpdateLookAround(float DeltaTime)
 	);
 
 	ControlledPawn->SetActorRotation(NewRotation);
+}
+
+bool AGuardAIController::IsTargetInAttackRange() const
+{
+	if (!CurrentTargetActor)
+	{
+		return false;
+	}
+
+	const APawn* ControlledPawn = GetPawn();
+
+	if (!ControlledPawn)
+	{
+		return false;
+	}
+
+	const float DistanceSquared = FVector::DistSquared2D(
+		ControlledPawn->GetActorLocation(),
+		CurrentTargetActor->GetActorLocation()
+	);
+
+	return DistanceSquared <= FMath::Square(AttackRange);
+}
+
+void AGuardAIController::TryAttackTarget()
+{
+	if (!CurrentTargetActor)
+	{
+		return;
+	}
+
+	if (AttackCooldownTimer > 0.0f)
+	{
+		return;
+	}
+
+	AStealthSandboxCharacter* PlayerTarget = Cast<AStealthSandboxCharacter>(CurrentTargetActor);
+
+	if (!PlayerTarget || PlayerTarget->IsDead())
+	{
+		return;
+	}
+
+	AttackCooldownTimer = AttackCooldown;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[GuardAI] Attacked player for %.1f damage."),
+		AttackDamage
+	);
+
+	PlayerTarget->TakeDamageFromEnemy(AttackDamage);
+}
+
+void AGuardAIController::FaceTarget(AActor* TargetActor)
+{
+	if (!TargetActor)
+	{
+		return;
+	}
+
+	APawn* ControlledPawn = GetPawn();
+
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	FVector Direction = TargetActor->GetActorLocation() - ControlledPawn->GetActorLocation();
+	Direction.Z = 0.0f;
+
+	if (Direction.IsNearlyZero())
+	{
+		return;
+	}
+
+	const FRotator TargetRotation = Direction.Rotation();
+	ControlledPawn->SetActorRotation(FRotator(0.0f, TargetRotation.Yaw, 0.0f));
 }
 

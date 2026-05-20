@@ -5,7 +5,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-
+#include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
@@ -69,6 +69,9 @@ AStealthSandboxCharacter::AStealthSandboxCharacter()
 void AStealthSandboxCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	CurrentHealth = MaxHealth;
+	bIsDead = false;
 
 	ApplyVisionLightSettings();
 
@@ -432,4 +435,58 @@ void AStealthSandboxCharacter::ApplyVisionLightSettings()
 	VisionLight->SetInnerConeAngle(VisionInnerConeAngle);
 	VisionLight->SetOuterConeAngle(VisionOuterConeAngle);
 	VisionLight->SetRelativeRotation(FRotator(VisionPitch, 0.0f, 0.0f));
+}
+
+void AStealthSandboxCharacter::TakeDamageFromEnemy(float DamageAmount)
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	if (DamageAmount <= 0.0f)
+	{
+		return;
+	}
+
+	CurrentHealth -= DamageAmount;
+	CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Player] Took %.1f damage. Health: %.1f / %.1f"),
+		DamageAmount,
+		CurrentHealth,
+		MaxHealth
+	);
+
+	if (CurrentHealth <= 0.0f)
+	{
+		HandleDeath();
+	}
+}
+
+bool AStealthSandboxCharacter::IsDead() const
+{
+	return bIsDead;
+}
+
+void AStealthSandboxCharacter::HandleDeath()
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	bIsDead = true;
+
+	UE_LOG(LogTemp, Error, TEXT("[Player] Died. Restarting level."));
+
+	// TODO: this can become a death screen.
+	if (UWorld* World = GetWorld())
+	{
+		const FName CurrentLevelName = *UGameplayStatics::GetCurrentLevelName(World);
+		UGameplayStatics::OpenLevel(World, CurrentLevelName);
+	}
 }
