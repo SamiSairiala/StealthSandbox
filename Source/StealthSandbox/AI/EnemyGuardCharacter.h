@@ -6,6 +6,8 @@
 
 class APatrolPoint;
 class UTextRenderComponent;
+class UStaticMeshComponent;
+class UMaterialInstanceDynamic;
 
 UCLASS()
 class STEALTHSANDBOX_API AEnemyGuardCharacter : public ACharacter
@@ -17,6 +19,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 public:
 	virtual void Tick(float DeltaTime) override;
@@ -41,4 +44,24 @@ public:
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Guard-Patrol")
 		TArray<TObjectPtr<APatrolPoint>> PatrolPoints;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Guard-Debug")
+		TObjectPtr<UStaticMeshComponent> VisionConeDebug;
+
+	UPROPERTY()
+		TObjectPtr<UMaterialInstanceDynamic> VisionConeMaterialInstance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guard-Debug")
+		FLinearColor PatrolColor = FLinearColor(0.0f, 0.4f, 1.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guard-Debug")
+		FLinearColor SuspiciousColor = FLinearColor(1.0f, 0.7f, 0.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guard-Debug")
+		FLinearColor AlertColor = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);
+
+	UFUNCTION(BlueprintCallable, Category = "Guard-Debug")
+		void SetVisionConeColor(const FLinearColor& NewColor);
+
+	void SetupVisionConeDebug();
 };

@@ -930,6 +930,26 @@ void AGuardAIController::UpdateGuardDebugText()
 	);
 
 	ControlledGuard->SetDebugText(DebugString);
+
+	switch (CurrentState)
+	{
+	case EGuardState::Patrol:
+		ControlledGuard->SetVisionConeColor(ControlledGuard->PatrolColor);
+		break;
+
+	case EGuardState::Suspicious:
+	case EGuardState::Investigate:
+	case EGuardState::Search:
+		ControlledGuard->SetVisionConeColor(ControlledGuard->SuspiciousColor);
+		break;
+
+	case EGuardState::Alert:
+		ControlledGuard->SetVisionConeColor(ControlledGuard->AlertColor);
+		break;
+
+	default:
+		break;
+	}
 }
 
 AActor* AGuardAIController::GetBestKnownTarget() const

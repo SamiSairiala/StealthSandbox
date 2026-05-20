@@ -2,6 +2,10 @@
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraActor.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Materials/MaterialInterface.h"
 #include "EnemyGuardCharacter.h"
 
 AEnemyGuardCharacter::AEnemyGuardCharacter()
@@ -15,6 +19,24 @@ AEnemyGuardCharacter::AEnemyGuardCharacter()
 	DebugText->SetHorizontalAlignment(EHTA_Center);
 	DebugText->SetWorldSize(28.0f);
 	DebugText->SetText(FText::FromString(TEXT("Guard")));
+	// Debug vision cone. This is a visible helper for development/portfolio footage.
+// Later this can be replaced with a proper triangle/cone mesh or hidden in shipping builds.
+	VisionConeDebug = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisionConeDebug"));
+	VisionConeDebug->SetupAttachment(RootComponent);
+
+	// Give it a default mesh immediately for new Blueprint instances.
+// A small sphere works better as a clean AI state indicator than a huge debug rectangle.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(
+		TEXT("/Engine/BasicShapes/Sphere.Sphere")
+	);
+
+	if (SphereMesh.Succeeded())
+	{
+		VisionConeDebug->SetStaticMesh(SphereMesh.Object);
+	}
+
+	// Use one shared setup method so Blueprint/editor construction can re-apply the settings too.
+	SetupVisionConeDebug();
 }
 
 void AEnemyGuardCharacter::BeginPlay()
@@ -22,6 +44,18 @@ void AEnemyGuardCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	CurrentHealth = MaxHealth;
+
+	// Make sure the debug cone is correctly set up at runtime too.
+	SetupVisionConeDebug();
+}
+
+void AEnemyGuardCharacter::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	// This runs in the editor too, so if the Blueprint had old/empty component defaults,
+	// we force the debug mesh to stay visible and placed correctly.
+	SetupVisionConeDebug();
 }
 
 void AEnemyGuardCharacter::Tick(float DeltaTime)
@@ -95,4 +129,74 @@ void AEnemyGuardCharacter::FaceDebugTextToCamera()
 	FRotator LookAtRotation = DirectionToCamera.Rotation();
 
 	DebugText->SetWorldRotation(LookAtRotation);
+}
+
+void AEnemyGuardCharacter::SetVisionConeColor(const FLinearColor& NewColor)
+{
+	if (!VisionConeDebug)
+	{
+		return;
+	}
+
+	if (!VisionConeMaterialInstance)
+	{
+		VisionConeMaterialInstance = VisionConeDebug->CreateAndSetMaterialInstanceDynamic(0);
+	}
+
+	if (VisionConeMaterialInstance)
+	{
+		// The material uses "Color" for emissive color and "Opacity" for transparency.
+		VisionConeMaterialInstance->SetVectorParameterValue(TEXT("Color"), NewColor);
+		VisionConeMaterialInstance->SetVectorParameterValue(TEXT("BaseColor"), NewColor);
+		VisionConeMaterialInstance->SetScalarParameterValue(TEXT("Opacity"), NewColor.A);
+	}
+}
+
+void AEnemyGuardCharacter::SetupVisionConeDebug()
+{
+	if (!VisionConeDebug)
+	{
+		return;
+	}
+
+	// If an old Blueprint instance has no mesh assigned, force the engine sphere.
+	// We use this as a small "AI state light" above the enemy.
+	if (!VisionConeDebug->GetStaticMesh())
+	{
+		UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(
+			nullptr,
+			TEXT("/Engine/BasicShapes/Sphere.Sphere")
+		);
+
+		if (SphereMesh)
+		{
+			VisionConeDebug->SetStaticMesh(SphereMesh);
+		}
+	}
+
+	// Small indicator above the guard's head.
+	// This is much cleaner than a large floor rectangle and still shows AI state clearly.
+	VisionConeDebug->SetRelativeLocation(FVector(0.0f, 0.0f, 175.0f));
+	VisionConeDebug->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
+	VisionConeDebug->SetRelativeScale3D(FVector(0.25f, 0.25f, 0.25f));
+
+	VisionConeDebug->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	VisionConeDebug->SetVisibility(true);
+	VisionConeDebug->SetHiddenInGame(false);
+	VisionConeDebug->SetCastShadow(false);
+	VisionConeDebug->SetReceivesDecals(false);
+
+	// Give it a basic material if it has none.
+	if (VisionConeDebug->GetNumMaterials() == 0 || !VisionConeDebug->GetMaterial(0))
+	{
+		UMaterialInterface* BasicMaterial = LoadObject<UMaterialInterface>(
+			nullptr,
+			TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")
+		);
+
+		if (BasicMaterial)
+		{
+			VisionConeDebug->SetMaterial(0, BasicMaterial);
+		}
+	}
 }
