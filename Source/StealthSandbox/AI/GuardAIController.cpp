@@ -38,6 +38,11 @@ AGuardAIController::AGuardAIController()
 	PerceptionComp->SetDominantSense(SightConfig->GetSenseImplementation());
 }
 
+bool AGuardAIController::ShouldShowDebug() const
+{
+	return ControlledGuard && ControlledGuard->bShowDebugInfo;
+}
+
 void AGuardAIController::BeginPlay()
 {
 	Super::BeginPlay();
@@ -574,15 +579,18 @@ void AGuardAIController::MoveToLastKnownLocation()
 			*LastKnownLocation.ToString()
 		);
 
-		DrawDebugSphere(
-			GetWorld(),
-			LastKnownLocation,
-			70.0f,
-			16,
-			FColor::Red,
-			false,
-			3.0f
-		);
+		if (ShouldShowDebug()){
+			DrawDebugSphere(
+				GetWorld(),
+				LastKnownLocation,
+				70.0f,
+				16,
+				FColor::Red,
+				false,
+				3.0f
+			);
+		}
+		
 
 		return;
 	}
@@ -614,16 +622,18 @@ void AGuardAIController::MoveToLastKnownLocation()
 		*ProjectedLocation.Location.ToString(),
 		LastKnownAcceptanceRadius
 	);
-
-	DrawDebugSphere(
-		GetWorld(),
-		ProjectedLocation.Location,
-		50.0f,
-		16,
-		FColor::Yellow,
-		false,
-		2.0f
-	);
+	if (ShouldShowDebug()){
+		DrawDebugSphere(
+			GetWorld(),
+			ProjectedLocation.Location,
+			50.0f,
+			16,
+			FColor::Yellow,
+			false,
+			2.0f
+		);
+	}
+	
 }
 
 void AGuardAIController::HandlePatrolState(float DeltaTime)
@@ -675,16 +685,18 @@ void AGuardAIController::MoveToSuspiciousLocation()
 	if (!LastKnownLocation.IsNearlyZero())
 	{
 		MoveToLocation(LastKnownLocation, SuspiciousAcceptanceRadius);
-
-		DrawDebugSphere(
-			GetWorld(),
-			LastKnownLocation,
-			40.0f,
-			12,
-			FColor::Orange,
-			false,
-			0.2f
-		);
+		if (ShouldShowDebug()){
+			DrawDebugSphere(
+				GetWorld(),
+				LastKnownLocation,
+				40.0f,
+				12,
+				FColor::Orange,
+				false,
+				0.2f
+			);
+		}
+		
 	}
 }
 
@@ -717,16 +729,18 @@ void AGuardAIController::MoveToSuspiciousLastKnownLocation()
 			TEXT("[GuardAI] Suspicious last known location is not on/near navmesh: %s"),
 			*LastKnownLocation.ToString()
 		);
-
-		DrawDebugSphere(
-			GetWorld(),
-			LastKnownLocation,
-			50.0f,
-			12,
-			FColor::Red,
-			false,
-			2.0f
-		);
+		if (ShouldShowDebug()){
+			DrawDebugSphere(
+				GetWorld(),
+				LastKnownLocation,
+				50.0f,
+				12,
+				FColor::Red,
+				false,
+				2.0f
+			);
+		}
+		
 
 		return;
 	}
@@ -758,16 +772,18 @@ void AGuardAIController::MoveToSuspiciousLastKnownLocation()
 		*ProjectedLocation.Location.ToString(),
 		LastKnownAcceptanceRadius
 	);
-
-	DrawDebugSphere(
-		GetWorld(),
-		ProjectedLocation.Location,
-		45.0f,
-		12,
-		FColor::Orange,
-		false,
-		2.0f
-	);
+	if (ShouldShowDebug()){
+		DrawDebugSphere(
+			GetWorld(),
+			ProjectedLocation.Location,
+			45.0f,
+			12,
+			FColor::Orange,
+			false,
+			2.0f
+		);
+	}
+	
 }
 
 void AGuardAIController::MoveToCurrentPatrolPoint()
@@ -834,16 +850,18 @@ void AGuardAIController::MoveToCurrentPatrolPoint()
 		CurrentPatrolIndex,
 		*ProjectedLocation.Location.ToString()
 	);
-
-	DrawDebugSphere(
-		GetWorld(),
-		ProjectedLocation.Location,
-		50.0f,
-		16,
-		FColor::Green,
-		false,
-		2.0f
-	);
+	if (ShouldShowDebug()){
+		DrawDebugSphere(
+			GetWorld(),
+			ProjectedLocation.Location,
+			50.0f,
+			16,
+			FColor::Green,
+			false,
+			2.0f
+		);
+	}
+	
 }
 
 APatrolPoint* AGuardAIController::GetCurrentPatrolPoint() const
@@ -1047,16 +1065,18 @@ void AGuardAIController::UpdateLastKnownLocationFromSight()
 	{
 		// While the target is really visible, keep refreshing the true last seen position.
 		LastKnownLocation = TargetActor->GetActorLocation();
-
-		DrawDebugSphere(
-			GetWorld(),
-			LastKnownLocation,
-			30.0f,
-			8,
-			FColor::Cyan,
-			false,
-			0.05f
-		);
+		if (ShouldShowDebug()){
+			DrawDebugSphere(
+				GetWorld(),
+				LastKnownLocation,
+				30.0f,
+				8,
+				FColor::Cyan,
+				false,
+				0.05f
+			);
+		}
+		
 
 		return;
 	}
@@ -1077,16 +1097,18 @@ void AGuardAIController::UpdateLastKnownLocationFromSight()
 		TEXT("[GuardAI] Manual line of sight lost. New last known location: %s"),
 		*LastKnownLocation.ToString()
 	);
-
-	DrawDebugSphere(
-		GetWorld(),
-		LastKnownLocation,
-		45.0f,
-		12,
-		FColor::Orange,
-		false,
-		2.0f
-	);
+	if (ShouldShowDebug()){
+		DrawDebugSphere(
+			GetWorld(),
+			LastKnownLocation,
+			45.0f,
+			12,
+			FColor::Orange,
+			false,
+			2.0f
+		);
+	}
+	
 
 	if (CurrentState == EGuardState::Alert)
 	{
@@ -1149,3 +1171,4 @@ void AGuardAIController::UpdateLookAround(float DeltaTime)
 
 	ControlledPawn->SetActorRotation(NewRotation);
 }
+

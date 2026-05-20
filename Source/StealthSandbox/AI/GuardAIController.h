@@ -181,7 +181,7 @@ protected:
 		void OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 
 	void SetGuardState(EGuardState NewState);
-
+	bool ShouldShowDebug() const;
 	void HandleAlertState();
 	void HandleInvestigateState();
 	void HandleSearchState(float DeltaTime);

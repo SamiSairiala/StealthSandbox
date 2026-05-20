@@ -30,11 +30,19 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Guard")
 		float CurrentHealth = 100.0f;
 
+	// Toggle for all enemy debug visuals.
+	// Turn this off when recording clean gameplay or preparing a public build.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guard-Debug")
+		bool bShowDebugInfo = true;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Guard-Debug")
 		TObjectPtr<UTextRenderComponent> DebugText;
 
 	UFUNCTION(BlueprintCallable, Category = "Guard-Debug")
 		void SetDebugText(const FString& NewText);
+
+	UFUNCTION(BlueprintCallable, Category = "Guard-Debug")
+		void SetDebugVisible(bool bVisible);
 
 	// Rotates the debug text toward the player camera so it stays readable in-game.
 	void FaceDebugTextToCamera();

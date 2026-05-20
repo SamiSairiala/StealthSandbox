@@ -45,8 +45,9 @@ void AEnemyGuardCharacter::BeginPlay()
 
 	CurrentHealth = MaxHealth;
 
-	// Make sure the debug cone is correctly set up at runtime too.
+	// Make sure the debug indicator is correctly set up at runtime too.
 	SetupVisionConeDebug();
+	SetDebugVisible(bShowDebugInfo);
 }
 
 void AEnemyGuardCharacter::OnConstruction(const FTransform& Transform)
@@ -56,6 +57,7 @@ void AEnemyGuardCharacter::OnConstruction(const FTransform& Transform)
 	// This runs in the editor too, so if the Blueprint had old/empty component defaults,
 	// we force the debug mesh to stay visible and placed correctly.
 	SetupVisionConeDebug();
+	SetDebugVisible(bShowDebugInfo);
 }
 
 void AEnemyGuardCharacter::Tick(float DeltaTime)
@@ -98,12 +100,35 @@ void AEnemyGuardCharacter::SetDebugText(const FString& NewText)
 		return;
 	}
 
+	if (!bShowDebugInfo)
+	{
+		DebugText->SetText(FText::GetEmpty());
+		return;
+	}
+
 	DebugText->SetText(FText::FromString(NewText));
+}
+
+void AEnemyGuardCharacter::SetDebugVisible(bool bVisible)
+{
+	bShowDebugInfo = bVisible;
+
+	if (DebugText)
+	{
+		DebugText->SetVisibility(bShowDebugInfo);
+		DebugText->SetHiddenInGame(!bShowDebugInfo);
+	}
+
+	if (VisionConeDebug)
+	{
+		VisionConeDebug->SetVisibility(bShowDebugInfo);
+		VisionConeDebug->SetHiddenInGame(!bShowDebugInfo);
+	}
 }
 
 void AEnemyGuardCharacter::FaceDebugTextToCamera()
 {
-	if (!DebugText)
+	if (!bShowDebugInfo || !DebugText)
 	{
 		return;
 	}
@@ -133,7 +158,7 @@ void AEnemyGuardCharacter::FaceDebugTextToCamera()
 
 void AEnemyGuardCharacter::SetVisionConeColor(const FLinearColor& NewColor)
 {
-	if (!VisionConeDebug)
+	if (!bShowDebugInfo || !VisionConeDebug)
 	{
 		return;
 	}
