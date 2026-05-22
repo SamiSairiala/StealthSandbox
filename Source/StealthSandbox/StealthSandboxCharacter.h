@@ -136,6 +136,30 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
 		float VisionPitch = -20.0f;
 
+	// Visibility Cone
+	//
+
+	// If true, enemies outside the player's view cone are hidden.
+	// This gives a Project Zomboid style "you cannot see behind you" effect.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		bool bUseEnemyVisibilityCone = true;
+
+	// How far the player can see enemies.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float EnemyVisionDistance = 3000.0f;
+
+	// Total vision angle in front of the player.
+	// Example: 110 means 55 degrees left and 55 degrees right.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float EnemyVisionAngle = 110.0f;
+
+	// If true, walls block enemy visibility.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		bool bEnemyVisionUsesLineOfSight = true;
+
+	void UpdateEnemyVisibility();
+	bool CanSeeEnemy(AActor* EnemyActor) const;
+
 	void ApplyVisionLightSettings();
 
 	void Move(const FInputActionValue& Value);

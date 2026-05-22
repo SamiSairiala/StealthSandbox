@@ -142,7 +142,7 @@ protected:
 
 	// How close the enemy must be before it can attack the player.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Attack")
-		float AttackRange = 160.0f;
+		float AttackRange = 220.0f;
 
 	// Damage dealt per attack.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Attack")
@@ -155,6 +155,11 @@ protected:
 	// Counts down while the enemy is waiting for the next attack.
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Attack")
 		float AttackCooldownTimer = 0.0f;
+
+	// How close the enemy tries to get when chasing before attacking.
+	// This should be smaller than AttackRange so the enemy does not stop too early.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Attack")
+		float ChaseAcceptanceRadius = 50.0f;
 
 	
 	// Look Around

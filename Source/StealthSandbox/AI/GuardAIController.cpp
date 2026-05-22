@@ -410,7 +410,7 @@ void AGuardAIController::HandleAlertState()
 		return;
 	}
 
-	MoveToActor(CurrentTargetActor, AcceptanceRadius);
+	MoveToActor(CurrentTargetActor, ChaseAcceptanceRadius);
 }
 
 void AGuardAIController::HandleInvestigateState()
@@ -1207,12 +1207,12 @@ bool AGuardAIController::IsTargetInAttackRange() const
 		return false;
 	}
 
-	const float DistanceSquared = FVector::DistSquared2D(
+	const float Distance = FVector::Dist2D(
 		ControlledPawn->GetActorLocation(),
 		CurrentTargetActor->GetActorLocation()
 	);
 
-	return DistanceSquared <= FMath::Square(AttackRange);
+	return Distance <= AttackRange;
 }
 
 void AGuardAIController::TryAttackTarget()

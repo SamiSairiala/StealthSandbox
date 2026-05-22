@@ -9,6 +9,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "AI/EnemyGuardCharacter.h"
+#include "Kismet/GameplayStatics.h"
 
 #include "DrawDebugHelpers.h"
 
@@ -113,6 +115,7 @@ void AStealthSandboxCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	AimAtMouseCursor();
+	UpdateEnemyVisibility();
 }
 
 void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -489,4 +492,100 @@ void AStealthSandboxCharacter::HandleDeath()
 		const FName CurrentLevelName = *UGameplayStatics::GetCurrentLevelName(World);
 		UGameplayStatics::OpenLevel(World, CurrentLevelName);
 	}
+}
+
+void AStealthSandboxCharacter::UpdateEnemyVisibility()
+{
+	if (!bUseEnemyVisibilityCone)
+	{
+		return;
+	}
+
+	TArray<AActor*> FoundEnemies;
+	UGameplayStatics::GetAllActorsOfClass(
+		GetWorld(),
+		AEnemyGuardCharacter::StaticClass(),
+		FoundEnemies
+	);
+
+	for (AActor* EnemyActor : FoundEnemies)
+	{
+		if (!EnemyActor)
+		{
+			continue;
+		}
+
+		const bool bCanSee = CanSeeEnemy(EnemyActor);
+
+		// Simple prototype version:
+		// hide enemies outside the player's cone.
+		// Collision and AI still work; only visibility changes.
+		EnemyActor->SetActorHiddenInGame(!bCanSee);
+	}
+}
+
+bool AStealthSandboxCharacter::CanSeeEnemy(AActor* EnemyActor) const
+{
+	if (!EnemyActor)
+	{
+		return false;
+	}
+
+	const FVector PlayerLocation = GetActorLocation();
+	const FVector EnemyLocation = EnemyActor->GetActorLocation();
+
+	const float DistanceSquared = FVector::DistSquared2D(PlayerLocation, EnemyLocation);
+
+	if (DistanceSquared > FMath::Square(EnemyVisionDistance))
+	{
+		return false;
+	}
+
+	FVector DirectionToEnemy = EnemyLocation - PlayerLocation;
+	DirectionToEnemy.Z = 0.0f;
+
+	if (DirectionToEnemy.IsNearlyZero())
+	{
+		return true;
+	}
+
+	DirectionToEnemy.Normalize();
+
+	FVector Forward = GetActorForwardVector();
+	Forward.Z = 0.0f;
+	Forward.Normalize();
+
+	const float Dot = FVector::DotProduct(Forward, DirectionToEnemy);
+	const float HalfAngleRadians = FMath::DegreesToRadians(EnemyVisionAngle * 0.5f);
+	const float RequiredDot = FMath::Cos(HalfAngleRadians);
+
+	if (Dot < RequiredDot)
+	{
+		return false;
+	}
+
+	if (bEnemyVisionUsesLineOfSight)
+	{
+		FHitResult Hit;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(this);
+
+		const FVector Start = PlayerLocation + FVector(0.0f, 0.0f, 60.0f);
+		const FVector End = EnemyLocation + FVector(0.0f, 0.0f, 60.0f);
+
+		const bool bHit = GetWorld()->LineTraceSingleByChannel(
+			Hit,
+			Start,
+			End,
+			ECC_Visibility,
+			Params
+		);
+
+		if (bHit && Hit.GetActor() != EnemyActor)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
