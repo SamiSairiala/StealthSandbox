@@ -28,6 +28,30 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 		bool IsDead() const;
 
+	// Gives the player a pistol and optional starting ammo.
+	// Pickups should call this instead of directly changing weapon variables.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+		void GivePistol(int32 StartingAmmo, bool bAutoEquip);
+
+	// Adds reserve pistol ammo to the player's inventory.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+		void AddPistolAmmo(int32 AmmoAmount);
+
+	// The player starts without a gun.
+	// If false, left click performs a quiet melee attack.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+		bool bHasPistol = false;
+
+	// If true, left click uses pistol behavior instead of unarmed melee.
+	// TODO: this can become a real equipped item slot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+		bool bPistolEquipped = false;
+
+	// Simple ammo inventory.
+	// TODO: this can move into a real inventory component.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory-Ammo")
+		int32 PistolAmmoInInventory = 0;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -55,23 +79,53 @@ protected:
 		TObjectPtr<UInputAction> ShootAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+		TObjectPtr<UInputAction> ReloadAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> CameraRotateHoldAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> CameraRotateAction;
 
 	// Combat
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+
+	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Pistol")
 		float ShootRange = 3000.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
-		float Damage = 25.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Pistol")
+		float PistolDamage = 25.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Melee")
+		float MeleeRange = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Melee")
+		float MeleeDamage = 8.0f;
+
+	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Pistol")
+		int32 PistolAmmoInMagazine = 0;
+
+	// TODO: If decide to implement modification system to weapons this can be edited.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Pistol")
+		int32 PistolMagazineSize = 8;
+
+	// Reload settings. // These might be later migrated to be in their own weapon script.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Pistol")
+		float ReloadTime = 1.5f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat-Pistol")
+		bool bIsReloading = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat-Pistol")
+		float ReloadTimer = 0.0f;
 
 	// Health
-	// 
 
 	// Simple player health for the prototype.
-	// Later this can become a full survival health/injury system.
+	//TODO: this can become a full survival health/injury system.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 		float MaxHealth = 100.0f;
 
@@ -136,7 +190,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
 		float VisionPitch = -20.0f;
 
-	// Visibility Cone
+	// Visibility Cone	
 	//
 
 	// If true, enemies outside the player's view cone are hidden.
@@ -163,7 +217,12 @@ protected:
 	void ApplyVisionLightSettings();
 
 	void Move(const FInputActionValue& Value);
+	void Attack();
 	void Shoot();
+	void MeleeAttack();
+	void ReloadPistol();
+	void FinishReload();
+	void UpdateReload(float DeltaTime);
 	void AimAtMouseCursor();
 
 	void StartCameraRotate();

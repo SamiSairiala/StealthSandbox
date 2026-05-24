@@ -116,6 +116,7 @@ void AStealthSandboxCharacter::Tick(float DeltaTime)
 
 	AimAtMouseCursor();
 	UpdateEnemyVisibility();
+	UpdateReload(DeltaTime);
 }
 
 void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -152,7 +153,7 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 			ShootAction,
 			ETriggerEvent::Started,
 			this,
-			&AStealthSandboxCharacter::Shoot
+			&AStealthSandboxCharacter::Attack
 		);
 
 		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] ShootAction bound."));
@@ -160,6 +161,22 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ShootAction is missing. Assign IA_Shoot in BP_ThirdPersonCharacter."));
+	}
+
+	if (ReloadAction)
+	{
+		EnhancedInput->BindAction(
+			ReloadAction,
+			ETriggerEvent::Started,
+			this,
+			&AStealthSandboxCharacter::ReloadPistol
+		);
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] ReloadAction bound."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ReloadAction is missing. Assign IA_Reload."));
 	}
 
 	if (CameraRotateHoldAction)
@@ -347,8 +364,30 @@ void AStealthSandboxCharacter::AimAtMouseCursor()
 	SetActorRotation(SmoothedRotation);
 }
 
+void AStealthSandboxCharacter::Attack()
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	if (bHasPistol && bPistolEquipped)
+	{
+		Shoot();
+		return;
+	}
+
+	MeleeAttack();
+}
+
 void AStealthSandboxCharacter::Shoot()
 {
+	if (bIsReloading)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cannot shoot while reloading."));
+		return;
+	}
+
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC)
 	{
@@ -370,6 +409,24 @@ void AStealthSandboxCharacter::Shoot()
 	}
 
 	Direction.Normalize();
+
+	if (PistolAmmoInMagazine <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Pistol empty. Trying reload."));
+		ReloadPistol(); // Auto reload.
+		return;
+	}
+
+	PistolAmmoInMagazine--;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Player] Pistol ammo: %d / %d, reserve: %d"),
+		PistolAmmoInMagazine,
+		PistolMagazineSize,
+		PistolAmmoInInventory
+	);
 
 	const FVector Start = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
 	const FVector End = Start + Direction * ShootRange;
@@ -405,7 +462,7 @@ void AStealthSandboxCharacter::Shoot()
 
 		if (AEnemyGuardCharacter* Guard = Cast<AEnemyGuardCharacter>(HitActor))
 		{
-			Guard->ApplyDamageToGuard(Damage);
+			Guard->ApplyDamageToGuard(PistolDamage);
 		}
 	}
 	else
@@ -423,6 +480,71 @@ void AStealthSandboxCharacter::Shoot()
 	);
 
 	UE_LOG(LogTemp, Warning, TEXT("[Player] Gunshot noise reported"));
+}
+
+void AStealthSandboxCharacter::MeleeAttack()
+{
+	FVector Direction = GetActorForwardVector();
+	Direction.Z = 0.0f;
+
+	if (Direction.IsNearlyZero())
+	{
+		return;
+	}
+
+	Direction.Normalize();
+
+	const FVector Start = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
+	const FVector End = Start + Direction * MeleeRange;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		Hit,
+		Start,
+		End,
+		ECC_Visibility,
+		Params
+	);
+
+	DrawDebugLine(
+		GetWorld(),
+		Start,
+		bHit ? Hit.ImpactPoint : End,
+		FColor::White,
+		false,
+		0.4f,
+		0,
+		2.0f
+	);
+
+	if (!bHit)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Melee missed."));
+		return;
+	}
+
+	AEnemyGuardCharacter* Guard = Cast<AEnemyGuardCharacter>(Hit.GetActor());
+
+	if (!Guard)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Melee hit non-enemy: %s"), *GetNameSafe(Hit.GetActor()));
+		return;
+	}
+
+	Guard->ApplyDamageToGuard(MeleeDamage);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Player] Melee hit enemy for %.1f damage."),
+		MeleeDamage
+	);
+
+	// Important: no hearing event here.
+	// Melee is quiet, so enemies are not alerted by simply pressing left click.
 }
 
 void AStealthSandboxCharacter::ApplyVisionLightSettings()
@@ -588,4 +710,118 @@ bool AStealthSandboxCharacter::CanSeeEnemy(AActor* EnemyActor) const
 	}
 
 	return true;
+}
+
+void AStealthSandboxCharacter::ReloadPistol()
+{
+	if (bIsDead)
+	{
+		return;
+	}
+
+	if (!bHasPistol || !bPistolEquipped)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Cannot reload: no pistol equipped."));
+		return;
+	}
+
+	if (bIsReloading)
+	{
+		return;
+	}
+
+	if (PistolAmmoInMagazine >= PistolMagazineSize)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] Magazine already full."));
+		return;
+	}
+
+	if (PistolAmmoInInventory <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Player] No reserve ammo."));
+		return;
+	}
+
+	bIsReloading = true;
+	ReloadTimer = ReloadTime;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Player] Reloading pistol..."));
+}
+
+void AStealthSandboxCharacter::UpdateReload(float DeltaTime)
+{
+	if (!bIsReloading)
+	{
+		return;
+	}
+
+	ReloadTimer -= DeltaTime;
+
+	if (ReloadTimer <= 0.0f)
+	{
+		FinishReload();
+	}
+}
+
+void AStealthSandboxCharacter::FinishReload()
+{
+	if (!bIsReloading)
+	{
+		return;
+	}
+
+	bIsReloading = false;
+	ReloadTimer = 0.0f;
+
+	const int32 MissingAmmo = PistolMagazineSize - PistolAmmoInMagazine;
+	const int32 AmmoToLoad = FMath::Min(MissingAmmo, PistolAmmoInInventory);
+
+	PistolAmmoInMagazine += AmmoToLoad;
+	PistolAmmoInInventory -= AmmoToLoad;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Player] Reload complete. Ammo: %d / %d, reserve: %d"),
+		PistolAmmoInMagazine,
+		PistolMagazineSize,
+		PistolAmmoInInventory
+	);
+}
+
+void AStealthSandboxCharacter::GivePistol(int32 StartingAmmo, bool bAutoEquip)
+{
+	bHasPistol = true;
+
+	if (bAutoEquip)
+	{
+		bPistolEquipped = true;
+	}
+
+	AddPistolAmmo(StartingAmmo);
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Player] Picked up pistol. Equipped: %s"),
+		bPistolEquipped ? TEXT("true") : TEXT("false")
+	);
+}
+
+void AStealthSandboxCharacter::AddPistolAmmo(int32 AmmoAmount)
+{
+	if (AmmoAmount <= 0)
+	{
+		return;
+	}
+
+	PistolAmmoInInventory += AmmoAmount;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[Player] Added pistol ammo: %d. Reserve: %d"),
+		AmmoAmount,
+		PistolAmmoInInventory
+	);
 }
