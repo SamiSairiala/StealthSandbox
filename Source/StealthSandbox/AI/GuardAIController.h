@@ -25,6 +25,13 @@ enum class EGuardState : uint8
 	Return       UMETA(DisplayName = "Return")
 };
 
+UENUM(BlueprintType)
+enum class EZombieIdleMode : uint8
+{
+	UsePatrolPoints UMETA(DisplayName = "Use Patrol Points"),
+	RandomWander    UMETA(DisplayName = "Random Wander")
+};
+
 UCLASS()
 class STEALTHSANDBOX_API AGuardAIController : public AAIController
 {
@@ -202,6 +209,45 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Patrol")
 		bool bPatrolMoveRequested = false;
 
+
+	// Wander
+
+
+	// RandomWander is better for zombie-style enemies.
+	// UsePatrolPoints still exists for special scripted routes.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Wander")
+		EZombieIdleMode IdleMode = EZombieIdleMode::RandomWander;
+
+	// How far from its current position the zombie searches for a random wander destination.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Wander")
+		float WanderRadius = 1200.0f;
+
+	// How close the zombie needs to get to the wander destination.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Wander")
+		float WanderAcceptanceRadius = 80.0f;
+
+	// Random wait time after reaching a wander destination.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Wander")
+		float WanderWaitTimeMin = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Wander")
+		float WanderWaitTimeMax = 3.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Wander")
+		bool bWanderMoveRequested = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Wander")
+		bool bWaitingAtWanderPoint = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Wander")
+		float WanderWaitTimer = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Wander")
+		float CurrentWanderWaitTime = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Wander")
+		FVector CurrentWanderDestination = FVector::ZeroVector;
+
 	UFUNCTION()
 		void OnTargetPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 
@@ -217,6 +263,10 @@ protected:
 	void MoveToCurrentPatrolPoint();
 	APatrolPoint* GetCurrentPatrolPoint() const;
 	void AdvancePatrolPoint();
+	void HandleWanderState(float DeltaTime);
+	void MoveToRandomWanderPoint();
+	bool TryGetRandomWanderPoint(FVector& OutLocation) const;
+
 	void HandleSuspiciousState(float DeltaTime);
 	void IncreaseSuspicion(float DeltaTime);
 	void DecaySuspicion(float DeltaTime);

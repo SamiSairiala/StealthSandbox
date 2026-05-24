@@ -158,6 +158,37 @@ void AGuardAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFoll
 		return;
 	}
 
+	if (CurrentState == EGuardState::Patrol && bWanderMoveRequested)
+	{
+		bWanderMoveRequested = false;
+
+		if (Result.IsSuccess())
+		{
+			bWaitingAtWanderPoint = true;
+			WanderWaitTimer = 0.0f;
+			CurrentWanderWaitTime = FMath::RandRange(WanderWaitTimeMin, WanderWaitTimeMax);
+
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[GuardAI] Reached wander point. Waiting %.1f seconds."),
+				CurrentWanderWaitTime
+			);
+		}
+		else
+		{
+			// If the path failed or was interrupted, do not get stuck.
+			// Try a new random point next Tick.
+			bWaitingAtWanderPoint = false;
+			WanderWaitTimer = 0.0f;
+			CurrentWanderWaitTime = 0.0f;
+
+			UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Wander move failed/aborted. Will pick a new point."));
+		}
+
+		return;
+	}
+
 	if (CurrentState == EGuardState::Suspicious && bSuspiciousMoveRequested)
 	{
 		bSuspiciousMoveRequested = false;
@@ -354,8 +385,9 @@ void AGuardAIController::SetGuardState(EGuardState NewState)
 
 	if (CurrentState == EGuardState::Patrol)
 	{
-		// Patrol should be clean: no active target, no suspicion,
-		// and no search/investigation leftovers.
+		// Patrol is our calm/default state.
+		// Depending on IdleMode, the zombie either follows assigned patrol points
+		// or randomly wanders on the navmesh.
 		CurrentTargetActor = nullptr;
 		SuspicionTargetActor = nullptr;
 		Suspicion = 0.0f;
@@ -363,17 +395,26 @@ void AGuardAIController::SetGuardState(EGuardState NewState)
 
 		SearchTimer = 0.0f;
 		bReachedSearchLocation = false;
+		bLastKnownMoveRequested = false;
 
 		bWaitingAtPatrolPoint = false;
 		bPatrolMoveRequested = false;
-		bLastKnownMoveRequested = false;
 		PatrolWaitTimer = 0.0f;
 
 		bSuspiciousMoveRequested = false;
 		bReachedSuspiciousLocation = false;
 		SuspiciousWaitTimer = 0.0f;
 
-		MoveToCurrentPatrolPoint();
+		bWanderMoveRequested = false;
+		bWaitingAtWanderPoint = false;
+		WanderWaitTimer = 0.0f;
+		CurrentWanderWaitTime = 0.0f;
+		CurrentWanderDestination = FVector::ZeroVector;
+
+		if (IdleMode == EZombieIdleMode::UsePatrolPoints)
+		{
+			MoveToCurrentPatrolPoint();
+		}
 	}
 
 	UE_LOG(
@@ -659,6 +700,13 @@ void AGuardAIController::MoveToLastKnownLocation()
 
 void AGuardAIController::HandlePatrolState(float DeltaTime)
 {
+
+	if (IdleMode == EZombieIdleMode::RandomWander)
+	{
+		HandleWanderState(DeltaTime);
+		return;
+	}
+
 	if (!ControlledGuard || ControlledGuard->PatrolPoints.Num() == 0)
 	{
 		return;
@@ -689,6 +737,106 @@ void AGuardAIController::HandlePatrolState(float DeltaTime)
 	{
 		MoveToCurrentPatrolPoint();
 	}
+}
+
+void AGuardAIController::HandleWanderState(float DeltaTime)
+{
+	// Random wander is the default zombie idle behavior.
+	// It lets us drop zombies into the level without manually assigning patrol points.
+
+	if (bWaitingAtWanderPoint)
+	{
+		WanderWaitTimer += DeltaTime;
+
+		if (WanderWaitTimer >= CurrentWanderWaitTime)
+		{
+			bWaitingAtWanderPoint = false;
+			WanderWaitTimer = 0.0f;
+			CurrentWanderWaitTime = 0.0f;
+
+			MoveToRandomWanderPoint();
+		}
+
+		return;
+	}
+
+	if (!bWanderMoveRequested)
+	{
+		MoveToRandomWanderPoint();
+	}
+}
+
+void AGuardAIController::MoveToRandomWanderPoint()
+{
+	FVector WanderLocation;
+
+	if (!TryGetRandomWanderPoint(WanderLocation))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[GuardAI] Could not find random wander point."));
+		return;
+	}
+
+	const EPathFollowingRequestResult::Type MoveResult = MoveToLocation(
+		WanderLocation,
+		WanderAcceptanceRadius
+	);
+
+	if (MoveResult == EPathFollowingRequestResult::Failed)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[GuardAI] Random wander move failed: %s"),
+			*WanderLocation.ToString()
+		);
+
+		bWanderMoveRequested = false;
+		return;
+	}
+
+	CurrentWanderDestination = WanderLocation;
+	bWanderMoveRequested = true;
+	bWaitingAtWanderPoint = false;
+
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("[GuardAI] Wandering to: %s"),
+		*CurrentWanderDestination.ToString()
+	);
+}
+
+bool AGuardAIController::TryGetRandomWanderPoint(FVector& OutLocation) const
+{
+	const APawn* ControlledPawn = GetPawn();
+
+	if (!ControlledPawn)
+	{
+		return false;
+	}
+
+	UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(GetWorld());
+
+	if (!NavSystem)
+	{
+		return false;
+	}
+
+	FNavLocation RandomLocation;
+
+	const bool bFound = NavSystem->GetRandomReachablePointInRadius(
+		ControlledPawn->GetActorLocation(),
+		WanderRadius,
+		RandomLocation
+	);
+
+	if (!bFound)
+	{
+		return false;
+	}
+
+	OutLocation = RandomLocation.Location;
+	return true;
 }
 
 void AGuardAIController::MoveToSuspiciousLocation()
