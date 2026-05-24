@@ -11,7 +11,7 @@
 #include "InputActionValue.h"
 #include "AI/EnemyGuardCharacter.h"
 #include "Kismet/GameplayStatics.h"
-
+#include "WeaponPickup.h"
 #include "DrawDebugHelpers.h"
 
 #include "Perception/AIPerceptionStimuliSourceComponent.h"
@@ -116,6 +116,7 @@ void AStealthSandboxCharacter::Tick(float DeltaTime)
 
 	AimAtMouseCursor();
 	UpdateEnemyVisibility();
+	UpdatePickupVisibility();
 	UpdateReload(DeltaTime);
 }
 
@@ -648,40 +649,49 @@ void AStealthSandboxCharacter::UpdateEnemyVisibility()
 
 bool AStealthSandboxCharacter::CanSeeEnemy(AActor* EnemyActor) const
 {
-	if (!EnemyActor)
+	return CanSeeActorWithVisionRules(EnemyActor, EnemyVisionDistance);
+}
+
+bool AStealthSandboxCharacter::CanSeeActorWithVisionRules(AActor* TargetActor, float MaxDistance) const
+{
+	if (!TargetActor)
 	{
 		return false;
 	}
 
 	const FVector PlayerLocation = GetActorLocation();
-	const FVector EnemyLocation = EnemyActor->GetActorLocation();
+	const FVector TargetLocation = TargetActor->GetActorLocation();
 
-	const float DistanceSquared = FVector::DistSquared2D(PlayerLocation, EnemyLocation);
+	const float DistanceSquared = FVector::DistSquared2D(PlayerLocation, TargetLocation);
 
-	if (DistanceSquared > FMath::Square(EnemyVisionDistance))
+	if (DistanceSquared > FMath::Square(MaxDistance))
 	{
 		return false;
 	}
 
-	FVector DirectionToEnemy = EnemyLocation - PlayerLocation;
-	DirectionToEnemy.Z = 0.0f;
+	const bool bCloseAwareness = DistanceSquared <= FMath::Square(CloseAwarenessDistance);
 
-	if (DirectionToEnemy.IsNearlyZero())
+	FVector DirectionToTarget = TargetLocation - PlayerLocation;
+	DirectionToTarget.Z = 0.0f;
+
+	if (DirectionToTarget.IsNearlyZero())
 	{
 		return true;
 	}
 
-	DirectionToEnemy.Normalize();
+	DirectionToTarget.Normalize();
 
 	FVector Forward = GetActorForwardVector();
 	Forward.Z = 0.0f;
 	Forward.Normalize();
 
-	const float Dot = FVector::DotProduct(Forward, DirectionToEnemy);
+	const float Dot = FVector::DotProduct(Forward, DirectionToTarget);
 	const float HalfAngleRadians = FMath::DegreesToRadians(EnemyVisionAngle * 0.5f);
 	const float RequiredDot = FMath::Cos(HalfAngleRadians);
 
-	if (Dot < RequiredDot)
+	const bool bInsideForwardCone = Dot >= RequiredDot;
+
+	if (!bInsideForwardCone && !bCloseAwareness)
 	{
 		return false;
 	}
@@ -693,7 +703,7 @@ bool AStealthSandboxCharacter::CanSeeEnemy(AActor* EnemyActor) const
 		Params.AddIgnoredActor(this);
 
 		const FVector Start = PlayerLocation + FVector(0.0f, 0.0f, 60.0f);
-		const FVector End = EnemyLocation + FVector(0.0f, 0.0f, 60.0f);
+		const FVector End = TargetLocation + FVector(0.0f, 0.0f, 60.0f);
 
 		const bool bHit = GetWorld()->LineTraceSingleByChannel(
 			Hit,
@@ -703,13 +713,40 @@ bool AStealthSandboxCharacter::CanSeeEnemy(AActor* EnemyActor) const
 			Params
 		);
 
-		if (bHit && Hit.GetActor() != EnemyActor)
+		if (bHit && Hit.GetActor() != TargetActor)
 		{
 			return false;
 		}
 	}
 
 	return true;
+}
+
+void AStealthSandboxCharacter::UpdatePickupVisibility()
+{
+	if (!bUsePickupVisibilityCone)
+	{
+		return;
+	}
+
+	TArray<AActor*> FoundPickups;
+	UGameplayStatics::GetAllActorsOfClass(
+		GetWorld(),
+		AWeaponPickup::StaticClass(),
+		FoundPickups
+	);
+
+	for (AActor* PickupActor : FoundPickups)
+	{
+		if (!PickupActor)
+		{
+			continue;
+		}
+
+		const bool bCanSee = CanSeeActorWithVisionRules(PickupActor, EnemyVisionDistance);
+
+		PickupActor->SetActorHiddenInGame(!bCanSee);
+	}
 }
 
 void AStealthSandboxCharacter::ReloadPistol()

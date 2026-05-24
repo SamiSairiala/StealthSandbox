@@ -1212,7 +1212,12 @@ bool AGuardAIController::IsTargetInAttackRange() const
 		CurrentTargetActor->GetActorLocation()
 	);
 
-	return Distance <= AttackRange;
+	// Actor locations are measured from capsule centers.
+	// This extra padding makes the zombie attack feel like it uses body/contact distance
+	// instead of waiting until both actor origins are very close.
+	const float BodyRangePadding = 80.0f;
+
+	return Distance <= AttackRange + BodyRangePadding;
 }
 
 void AGuardAIController::TryAttackTarget()

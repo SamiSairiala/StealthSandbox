@@ -11,6 +11,7 @@ class UInputAction;
 class UAIPerceptionStimuliSourceComponent;
 struct FInputActionValue;
 class USpotLightComponent;
+class AWeaponPickup;
 
 UCLASS(config = Game)
 class STEALTHSANDBOX_API AStealthSandboxCharacter : public ACharacter
@@ -207,9 +208,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
 		float EnemyVisionAngle = 110.0f;
 
+	// Very close enemies are visible even behind the player.
+	// This creates a "hearing / presence sense" so zombies chasing behind you do not vanish completely.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		float CloseAwarenessDistance = 650.0f;
+
 	// If true, walls block enemy visibility.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
 		bool bEnemyVisionUsesLineOfSight = true;
+
+	// If true, pickups are also hidden outside vision.
+	// This makes loot discovery follow the same rules as enemy visibility.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
+		bool bUsePickupVisibilityCone = true;
+
+	void UpdatePickupVisibility();
+	bool CanSeeActorWithVisionRules(AActor* TargetActor, float MaxDistance) const;
 
 	void UpdateEnemyVisibility();
 	bool CanSeeEnemy(AActor* EnemyActor) const;
