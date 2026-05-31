@@ -13,7 +13,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "WeaponPickup.h"
 #include "DrawDebugHelpers.h"
-
+#include "Pickups\AmmoPickup.h"
+#include "Blueprint/UserWidget.h"
 #include "Perception/AIPerceptionStimuliSourceComponent.h"
 #include "Perception/AISense_Sight.h"
 #include "Perception/AISense_Hearing.h"
@@ -74,6 +75,20 @@ void AStealthSandboxCharacter::BeginPlay()
 
 	CurrentHealth = MaxHealth;
 	bIsDead = false;
+
+	if (PlayerHUDClass)
+	{
+		PlayerHUDInstance = CreateWidget<UUserWidget>(GetWorld(), PlayerHUDClass);
+
+		if (PlayerHUDInstance)
+		{
+			PlayerHUDInstance->AddToViewport();
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[HUD] PlayerHUDClass is missing. Assign WBP_PlayerHUD in the player Blueprint."));
+	}
 
 	ApplyVisionLightSettings();
 
@@ -729,14 +744,15 @@ void AStealthSandboxCharacter::UpdatePickupVisibility()
 		return;
 	}
 
-	TArray<AActor*> FoundPickups;
+	// Weapon pickups.
+	TArray<AActor*> FoundWeaponPickups;
 	UGameplayStatics::GetAllActorsOfClass(
 		GetWorld(),
 		AWeaponPickup::StaticClass(),
-		FoundPickups
+		FoundWeaponPickups
 	);
 
-	for (AActor* PickupActor : FoundPickups)
+	for (AActor* PickupActor : FoundWeaponPickups)
 	{
 		if (!PickupActor)
 		{
@@ -744,7 +760,25 @@ void AStealthSandboxCharacter::UpdatePickupVisibility()
 		}
 
 		const bool bCanSee = CanSeeActorWithVisionRules(PickupActor, EnemyVisionDistance);
+		PickupActor->SetActorHiddenInGame(!bCanSee);
+	}
 
+	// Ammo pickups.
+	TArray<AActor*> FoundAmmoPickups;
+	UGameplayStatics::GetAllActorsOfClass(
+		GetWorld(),
+		AAmmoPickup::StaticClass(),
+		FoundAmmoPickups
+	);
+
+	for (AActor* PickupActor : FoundAmmoPickups)
+	{
+		if (!PickupActor)
+		{
+			continue;
+		}
+
+		const bool bCanSee = CanSeeActorWithVisionRules(PickupActor, EnemyVisionDistance);
 		PickupActor->SetActorHiddenInGame(!bCanSee);
 	}
 }
@@ -861,4 +895,54 @@ void AStealthSandboxCharacter::AddPistolAmmo(int32 AmmoAmount)
 		AmmoAmount,
 		PistolAmmoInInventory
 	);
+}
+
+float AStealthSandboxCharacter::GetCurrentHealth() const
+{
+	return CurrentHealth;
+}
+
+float AStealthSandboxCharacter::GetMaxHealth() const
+{
+	return MaxHealth;
+}
+
+FString AStealthSandboxCharacter::GetWeaponDisplayName() const
+{
+	if (bHasPistol && bPistolEquipped)
+	{
+		return TEXT("Pistol");
+	}
+
+	return TEXT("Fists");
+}
+
+int32 AStealthSandboxCharacter::GetPistolAmmoInMagazine() const
+{
+	return PistolAmmoInMagazine;
+}
+
+int32 AStealthSandboxCharacter::GetPistolMagazineSize() const
+{
+	return PistolMagazineSize;
+}
+
+int32 AStealthSandboxCharacter::GetPistolAmmoInInventory() const
+{
+	return PistolAmmoInInventory;
+}
+
+bool AStealthSandboxCharacter::IsReloading() const
+{
+	return bIsReloading;
+}
+
+bool AStealthSandboxCharacter::HasPistol() const
+{
+	return bHasPistol;
+}
+
+bool AStealthSandboxCharacter::IsPistolEquipped() const
+{
+	return bPistolEquipped;
 }

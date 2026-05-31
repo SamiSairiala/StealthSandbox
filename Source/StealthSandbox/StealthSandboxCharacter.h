@@ -12,6 +12,8 @@ class UAIPerceptionStimuliSourceComponent;
 struct FInputActionValue;
 class USpotLightComponent;
 class AWeaponPickup;
+class AAmmoPickup;
+class UUserWidget;
 
 UCLASS(config = Game)
 class STEALTHSANDBOX_API AStealthSandboxCharacter : public ACharacter
@@ -52,6 +54,39 @@ public:
 	// TODO: this can move into a real inventory component.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory-Ammo")
 		int32 PistolAmmoInInventory = 0;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		float GetCurrentHealth() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		float GetMaxHealth() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		FString GetWeaponDisplayName() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		int32 GetPistolAmmoInMagazine() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		int32 GetPistolMagazineSize() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		int32 GetPistolAmmoInInventory() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		bool IsReloading() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		bool HasPistol() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		bool IsPistolEquipped() const;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "HUD")
+		TSubclassOf<UUserWidget> PlayerHUDClass;
+
+	UPROPERTY()
+		TObjectPtr<UUserWidget> PlayerHUDInstance;
 
 protected:
 	virtual void BeginPlay() override;
