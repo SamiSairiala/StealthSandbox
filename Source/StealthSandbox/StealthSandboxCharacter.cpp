@@ -195,6 +195,22 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ReloadAction is missing. Assign IA_Reload."));
 	}
 
+	if (InventoryAction)
+	{
+		EnhancedInput->BindAction(
+			InventoryAction,
+			ETriggerEvent::Started,
+			this,
+			&AStealthSandboxCharacter::ToggleInventory
+		);
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] InventoryAction bound."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] InventoryAction is missing. Assign IA_Inventory."));
+	}
+
 	if (CameraRotateHoldAction)
 	{
 		EnhancedInput->BindAction(
@@ -866,7 +882,7 @@ void AStealthSandboxCharacter::GivePistol(int32 StartingAmmo, bool bAutoEquip)
 
 	if (bAutoEquip)
 	{
-		bPistolEquipped = true;
+		EquipPistol();
 	}
 
 	AddPistolAmmo(StartingAmmo);
@@ -945,4 +961,110 @@ bool AStealthSandboxCharacter::HasPistol() const
 bool AStealthSandboxCharacter::IsPistolEquipped() const
 {
 	return bPistolEquipped;
+}
+
+void AStealthSandboxCharacter::EquipPistol()
+{
+	if (!bHasPistol)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Inventory] Cannot equip pistol: player does not have one."));
+		return;
+	}
+
+	bPistolEquipped = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Inventory] Pistol equipped."));
+}
+
+void AStealthSandboxCharacter::UnequipPistol()
+{
+	bPistolEquipped = false;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Inventory] Pistol unequipped. Using fists."));
+}
+
+bool AStealthSandboxCharacter::CanEquipPistol() const
+{
+	return bHasPistol && !bPistolEquipped;
+}
+
+void AStealthSandboxCharacter::ToggleInventory()
+{
+	if (bInventoryOpen)
+	{
+		CloseInventory();
+	}
+	else
+	{
+		OpenInventory();
+	}
+}
+
+void AStealthSandboxCharacter::OpenInventory()
+{
+	if (bInventoryOpen)
+	{
+		return;
+	}
+
+	if (!InventoryWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Inventory] InventoryWidgetClass is missing. Assign WBP_Inventory in the player Blueprint."));
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+
+	if (!PC)
+	{
+		return;
+	}
+
+	InventoryWidgetInstance = CreateWidget<UUserWidget>(PC, InventoryWidgetClass);
+
+	if (!InventoryWidgetInstance)
+	{
+		return;
+	}
+
+	InventoryWidgetInstance->AddToViewport(10);
+	bInventoryOpen = true;
+
+	PC->bShowMouseCursor = true;
+
+	FInputModeGameAndUI InputMode;
+	InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	PC->SetInputMode(InputMode);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Inventory] Opened."));
+}
+
+void AStealthSandboxCharacter::CloseInventory()
+{
+	if (!bInventoryOpen)
+	{
+		return;
+	}
+
+	if (InventoryWidgetInstance)
+	{
+		InventoryWidgetInstance->RemoveFromParent();
+		InventoryWidgetInstance = nullptr;
+	}
+
+	bInventoryOpen = false;
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+
+	if (PC)
+	{
+		// We still want mouse cursor for aiming in this prototype.
+		PC->bShowMouseCursor = true;
+
+		FInputModeGameOnly InputMode;
+		PC->SetInputMode(InputMode);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Inventory] Closed."));
 }

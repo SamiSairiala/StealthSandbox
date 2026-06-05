@@ -40,6 +40,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 		void AddPistolAmmo(int32 AmmoAmount);
 
+	// Equips the pistol if the player owns it.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+		void EquipPistol();
+
+	// Unequips the pistol and returns the player to fists/melee.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+		void UnequipPistol();
+
+	// Used by UI to decide if the Equip button should be available.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+		bool CanEquipPistol() const;
+
 	// The player starts without a gun.
 	// If false, left click performs a quiet melee attack.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
@@ -88,6 +100,26 @@ public:
 	UPROPERTY()
 		TObjectPtr<UUserWidget> PlayerHUDInstance;
 
+	// Inventory UI
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory UI")
+		TSubclassOf<UUserWidget> InventoryWidgetClass;
+
+	UPROPERTY()
+		TObjectPtr<UUserWidget> InventoryWidgetInstance;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory UI")
+		bool bInventoryOpen = false;
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
+		void ToggleInventory();
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
+		void OpenInventory();
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
+		void CloseInventory();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -116,6 +148,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> ReloadAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+		TObjectPtr<UInputAction> InventoryAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> CameraRotateHoldAction;
