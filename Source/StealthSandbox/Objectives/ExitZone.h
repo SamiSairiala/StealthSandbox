@@ -6,6 +6,7 @@
 
 class UBoxComponent;
 class UStaticMeshComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class STEALTHSANDBOX_API AExitZone : public AActor
@@ -14,7 +15,7 @@ class STEALTHSANDBOX_API AExitZone : public AActor
 
 public:
 	AExitZone();
-
+	virtual void Tick(float DeltaTime) override;
 protected:
 	virtual void BeginPlay() override;
 
@@ -39,6 +40,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Exit")
 		bool bHasTriggered = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Exit")
+		TObjectPtr<UTextRenderComponent> ExitLabel;
+
 	UFUNCTION()
 		void OnExitOverlap(
 			UPrimitiveComponent* OverlappedComponent,
@@ -52,4 +56,6 @@ protected:
 	void HandleWin();
 
 	FTimerHandle WinTimerHandle;
+
+	void FaceLabelToCamera();
 };

@@ -5,11 +5,14 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Components/TextRenderComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Camera/PlayerCameraManager.h"
 #include "../StealthSandboxCharacter.h"
 
 AExitZone::AExitZone()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
@@ -26,6 +29,14 @@ AExitZone::AExitZone()
 	ExitMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ExitMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 5.0f));
 	ExitMesh->SetRelativeScale3D(FVector(3.0f, 3.0f, 0.1f));
+
+	ExitLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ExitLabel"));
+	ExitLabel->SetupAttachment(SceneRoot);
+	ExitLabel->SetRelativeLocation(FVector(0.0f, 0.0f, 120.0f));
+	ExitLabel->SetHorizontalAlignment(EHTA_Center);
+	ExitLabel->SetWorldSize(32.0f);
+	ExitLabel->SetText(FText::FromString(TEXT("Exit")));
+	ExitLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(
 		TEXT("/Engine/BasicShapes/Cube.Cube")
@@ -48,6 +59,13 @@ void AExitZone::BeginPlay()
 			&AExitZone::OnExitOverlap
 		);
 	}
+}
+
+void AExitZone::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	FaceLabelToCamera();
 }
 
 void AExitZone::OnExitOverlap(
@@ -113,4 +131,31 @@ void AExitZone::HandleWin()
 
 		UGameplayStatics::OpenLevel(World, CurrentLevelName);
 	}
+}
+
+void AExitZone::FaceLabelToCamera()
+{
+	if (!ExitLabel)
+	{
+		return;
+	}
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+
+	if (!PlayerController || !PlayerController->PlayerCameraManager)
+	{
+		return;
+	}
+
+	const FVector CameraLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+	const FVector LabelLocation = ExitLabel->GetComponentLocation();
+
+	FVector DirectionToCamera = CameraLocation - LabelLocation;
+
+	if (DirectionToCamera.IsNearlyZero())
+	{
+		return;
+	}
+
+	ExitLabel->SetWorldRotation(DirectionToCamera.Rotation());
 }

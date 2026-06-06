@@ -6,6 +6,7 @@
 
 class USphereComponent;
 class UStaticMeshComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class STEALTHSANDBOX_API AAmmoPickup : public AActor
@@ -14,6 +15,7 @@ class STEALTHSANDBOX_API AAmmoPickup : public AActor
 
 public:
 	AAmmoPickup();
+	virtual void Tick(float DeltaTime) override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -31,6 +33,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
 		int32 AmmoAmount = 8;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
+		TObjectPtr<UTextRenderComponent> PickupLabel;
+
 	UFUNCTION()
 		void OnPickupOverlap(
 			UPrimitiveComponent* OverlappedComponent,
@@ -40,4 +45,6 @@ protected:
 			bool bFromSweep,
 			const FHitResult& SweepResult
 		);
+
+	void FaceLabelToCamera();
 };

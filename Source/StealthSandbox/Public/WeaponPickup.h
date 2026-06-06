@@ -6,6 +6,7 @@
 
 class USphereComponent;
 class UStaticMeshComponent;
+class UTextRenderComponent;
 
 UCLASS()
 class STEALTHSANDBOX_API AWeaponPickup : public AActor
@@ -14,6 +15,7 @@ class STEALTHSANDBOX_API AWeaponPickup : public AActor
 
 public:
 	AWeaponPickup();
+	virtual void Tick(float DeltaTime) override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -26,6 +28,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
 		TObjectPtr<UStaticMeshComponent> PickupMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
+		TObjectPtr<UTextRenderComponent> PickupLabel;
 
 	// How much reserve ammo this pickup gives with the pistol.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
@@ -44,4 +49,6 @@ protected:
 			bool bFromSweep,
 			const FHitResult& SweepResult
 		);
+
+	void FaceLabelToCamera();
 };

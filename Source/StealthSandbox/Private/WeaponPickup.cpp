@@ -4,12 +4,15 @@
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../StealthSandboxCharacter.h"
+#include "Components/TextRenderComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Camera/PlayerCameraManager.h"
 #include "WeaponPickup.h"
 
 
 AWeaponPickup::AWeaponPickup()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
@@ -26,6 +29,14 @@ AWeaponPickup::AWeaponPickup()
 	PickupMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	PickupMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 20.0f));
 	PickupMesh->SetRelativeScale3D(FVector(0.5f, 0.2f, 0.12f));
+
+	PickupLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PickupLabel"));
+	PickupLabel->SetupAttachment(SceneRoot);
+	PickupLabel->SetRelativeLocation(FVector(0.0f, 0.0f, 90.0f));
+	PickupLabel->SetHorizontalAlignment(EHTA_Center);
+	PickupLabel->SetWorldSize(28.0f);
+	PickupLabel->SetText(FText::FromString(TEXT("Pistol")));
+	PickupLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(
 		TEXT("/Engine/BasicShapes/Cube.Cube")
@@ -45,6 +56,13 @@ void AWeaponPickup::BeginPlay()
 		this,
 		&AWeaponPickup::OnPickupOverlap
 	);
+}
+
+void AWeaponPickup::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	FaceLabelToCamera();
 }
 
 void AWeaponPickup::OnPickupOverlap(
@@ -73,4 +91,31 @@ void AWeaponPickup::OnPickupOverlap(
 	);
 
 	Destroy();
+}
+
+void AWeaponPickup::FaceLabelToCamera()
+{
+	if (!PickupLabel)
+	{
+		return;
+	}
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+
+	if (!PlayerController || !PlayerController->PlayerCameraManager)
+	{
+		return;
+	}
+
+	const FVector CameraLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+	const FVector LabelLocation = PickupLabel->GetComponentLocation();
+
+	FVector DirectionToCamera = CameraLocation - LabelLocation;
+
+	if (DirectionToCamera.IsNearlyZero())
+	{
+		return;
+	}
+
+	PickupLabel->SetWorldRotation(DirectionToCamera.Rotation());
 }

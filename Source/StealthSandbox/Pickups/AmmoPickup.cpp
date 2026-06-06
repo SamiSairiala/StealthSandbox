@@ -3,11 +3,14 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Components/TextRenderComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Camera/PlayerCameraManager.h"
 #include "../StealthSandboxCharacter.h"
 
 AAmmoPickup::AAmmoPickup()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
@@ -25,6 +28,14 @@ AAmmoPickup::AAmmoPickup()
 	PickupMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 20.0f));
 	PickupMesh->SetRelativeScale3D(FVector(0.35f, 0.35f, 0.15f));
 
+	PickupLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PickupLabel"));
+	PickupLabel->SetupAttachment(SceneRoot);
+	PickupLabel->SetRelativeLocation(FVector(0.0f, 0.0f, 90.0f));
+	PickupLabel->SetHorizontalAlignment(EHTA_Center);
+	PickupLabel->SetWorldSize(28.0f);
+	PickupLabel->SetText(FText::FromString(TEXT("Ammo +8")));
+	PickupLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(
 		TEXT("/Engine/BasicShapes/Cube.Cube")
 	);
@@ -39,6 +50,15 @@ void AAmmoPickup::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (PickupLabel)
+	{
+		PickupLabel->SetText(
+			FText::FromString(
+				FString::Printf(TEXT("Ammo +%d"), AmmoAmount)
+			)
+		);
+	}
+
 	if (PickupCollision)
 	{
 		PickupCollision->OnComponentBeginOverlap.AddDynamic(
@@ -46,6 +66,13 @@ void AAmmoPickup::BeginPlay()
 			&AAmmoPickup::OnPickupOverlap
 		);
 	}
+}
+
+void AAmmoPickup::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	FaceLabelToCamera();
 }
 
 void AAmmoPickup::OnPickupOverlap(
@@ -74,4 +101,31 @@ void AAmmoPickup::OnPickupOverlap(
 	);
 
 	Destroy();
+}
+
+void AAmmoPickup::FaceLabelToCamera()
+{
+	if (!PickupLabel)
+	{
+		return;
+	}
+
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+
+	if (!PlayerController || !PlayerController->PlayerCameraManager)
+	{
+		return;
+	}
+
+	const FVector CameraLocation = PlayerController->PlayerCameraManager->GetCameraLocation();
+	const FVector LabelLocation = PickupLabel->GetComponentLocation();
+
+	FVector DirectionToCamera = CameraLocation - LabelLocation;
+
+	if (DirectionToCamera.IsNearlyZero())
+	{
+		return;
+	}
+
+	PickupLabel->SetWorldRotation(DirectionToCamera.Rotation());
 }
