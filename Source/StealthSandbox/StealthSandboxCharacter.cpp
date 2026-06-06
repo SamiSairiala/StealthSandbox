@@ -398,6 +398,11 @@ void AStealthSandboxCharacter::AimAtMouseCursor()
 
 void AStealthSandboxCharacter::Attack()
 {
+	if (bInventoryOpen)
+	{
+		return;
+	}
+
 	if (bIsDead)
 	{
 		return;
@@ -801,6 +806,11 @@ void AStealthSandboxCharacter::UpdatePickupVisibility()
 
 void AStealthSandboxCharacter::ReloadPistol()
 {
+	if (bInventoryOpen)
+	{
+		return;
+	}
+
 	if (bIsDead)
 	{
 		return;
