@@ -1,60 +1,55 @@
 #include "StealthSandboxCharacter.h"
+
 #include "AI/EnemyGuardCharacter.h"
-#include "Components/SpotLightComponent.h"
-#include "Camera/CameraComponent.h"
-#include "GameFramework/PlayerController.h"
-#include "GameFramework/SpringArmComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "EnhancedInputComponent.h"
-#include "EnhancedInputSubsystems.h"
-#include "InputActionValue.h"
-#include "AI/EnemyGuardCharacter.h"
-#include "Kismet/GameplayStatics.h"
-#include "WeaponPickup.h"
-#include "DrawDebugHelpers.h"
 #include "Pickups\AmmoPickup.h"
 #include "Blueprint/UserWidget.h"
+#include "Camera/CameraComponent.h"
+#include "Components/SpotLightComponent.h"
+#include "DrawDebugHelpers.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "InputActionValue.h"
+#include "Kismet/GameplayStatics.h"
 #include "Perception/AIPerceptionStimuliSourceComponent.h"
-#include "Perception/AISense_Sight.h"
 #include "Perception/AISense_Hearing.h"
+#include "Perception/AISense_Sight.h"
+#include "WeaponPickup.h"
 
 AStealthSandboxCharacter::AStealthSandboxCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// We rotate manually toward mouse.
+	// FPS mode:
+	// We rotate the character body manually from mouse X and rotate the camera manually from mouse Y.
+	// This avoids fighting old top-down Blueprint/component settings.
 	bUseControllerRotationYaw = false;
 
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 720.0f, 0.0f);
 	GetCharacterMovement()->MaxWalkSpeed = 450.0f;
 
-	// Top-down camera boom.
+	// Keep the old component names so existing Blueprints do not lose inherited components.
+	// The boom is no longer used as a top-down arm, but keeping it avoids breaking old data.
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 1400.0f;
-
-	// Important: camera keeps its own rotation instead of inheriting player yaw.
-	CameraBoom->SetUsingAbsoluteRotation(true);
-
-	CameraYaw = 0.0f;
-	CameraPitch = -70.0f;
-	CameraBoom->SetWorldRotation(FRotator(CameraPitch, CameraYaw, 0.0f));
-
+	CameraBoom->TargetArmLength = 0.0f;
 	CameraBoom->bDoCollisionTest = false;
+	CameraBoom->SetUsingAbsoluteRotation(false);
 
+	// First-person camera. It is still named TopDownCamera to avoid Blueprint/native rename issues.
 	TopDownCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("TopDownCamera"));
-	TopDownCamera->SetupAttachment(CameraBoom);
+	TopDownCamera->SetupAttachment(RootComponent);
+	TopDownCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 70.0f));
+	TopDownCamera->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
 	TopDownCamera->bUsePawnControlRotation = false;
 
-	// Forward-facing vision cone.
-	// This is the first version of the "player only sees in a cone" mechanic.
-	// TODO: Later replace/extend this with a post-process mask or fog-of-war.
 	VisionLight = CreateDefaultSubobject<USpotLightComponent>(TEXT("VisionLight"));
-	VisionLight->SetupAttachment(RootComponent);
-	VisionLight->SetRelativeLocation(FVector(0.0f, 0.0f, 120.0f));
-	VisionLight->SetRelativeRotation(FRotator(VisionPitch, 0.0f, 0.0f));
+	VisionLight->SetupAttachment(TopDownCamera);
+	VisionLight->SetRelativeLocation(FVector(20.0f, 0.0f, 0.0f));
+	VisionLight->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
 
 	VisionLight->SetIntensity(VisionLightIntensity);
 	VisionLight->SetAttenuationRadius(VisionLightRange);
@@ -62,49 +57,89 @@ AStealthSandboxCharacter::AStealthSandboxCharacter()
 	VisionLight->SetOuterConeAngle(VisionOuterConeAngle);
 	VisionLight->SetCastShadows(true);
 
-	// Allows AI Perception guards to see/hear this player.
+	// Allows AI Perception zombies/guards to see/hear this player.
 	StimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("StimuliSource"));
 	StimuliSource->RegisterForSense(UAISense_Sight::StaticClass());
 	StimuliSource->RegisterForSense(UAISense_Hearing::StaticClass());
 	StimuliSource->bAutoRegister = true;
 }
 
+void AStealthSandboxCharacter::SanitizePrototypeDefaults()
+{
+	// During the top-down -> FPS pivot, some Blueprint defaults can keep stale/corrupt values.
+	// These guards prevent HUD values like 0/0 health or huge ammo numbers while we keep iterating.
+	if (MaxHealth <= 0.0f || MaxHealth > 100000.0f)
+	{
+		MaxHealth = 100.0f;
+	}
+
+	if (PistolMagazineSize <= 0 || PistolMagazineSize > 1000)
+	{
+		PistolMagazineSize = 8;
+	}
+
+	if (PistolAmmoInMagazine < 0 || PistolAmmoInMagazine > 10000)
+	{
+		PistolAmmoInMagazine = 0;
+	}
+
+	if (PistolAmmoInInventory < 0 || PistolAmmoInInventory > 10000)
+	{
+		PistolAmmoInInventory = 0;
+	}
+
+	if (MouseSensitivity <= 0.0f || MouseSensitivity > 20.0f)
+	{
+		MouseSensitivity = 1.0f;
+	}
+}
+
+
 void AStealthSandboxCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	SanitizePrototypeDefaults();
+
 	CurrentHealth = MaxHealth;
 	bIsDead = false;
+	CurrentPitch = 0.0f;
 
-	if (PlayerHUDClass)
+	if (TopDownCamera)
 	{
-		PlayerHUDInstance = CreateWidget<UUserWidget>(GetWorld(), PlayerHUDClass);
-
-		if (PlayerHUDInstance)
-		{
-			PlayerHUDInstance->AddToViewport();
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[HUD] PlayerHUDClass is missing. Assign WBP_PlayerHUD in the player Blueprint."));
+		TopDownCamera->SetRelativeRotation(FRotator(CurrentPitch, 0.0f, 0.0f));
 	}
 
 	ApplyVisionLightSettings();
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
-		PC->bShowMouseCursor = true;
-		PC->bEnableClickEvents = true;
-		PC->bEnableMouseOverEvents = true;
+		// FPS input mode. Inventory will temporarily switch this to GameAndUI.
+		PC->bShowMouseCursor = false;
+		PC->bEnableClickEvents = false;
+		PC->bEnableMouseOverEvents = false;
 
-		FInputModeGameAndUI InputMode;
-		InputMode.SetHideCursorDuringCapture(false);
-		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-
+		FInputModeGameOnly InputMode;
 		PC->SetInputMode(InputMode);
+
 		PC->SetIgnoreMoveInput(false);
 		PC->SetIgnoreLookInput(false);
+
+		// Create HUD with the owning player controller.
+		// This is important because the UMG bindings use Get Owning Player Pawn.
+		if (PlayerHUDClass)
+		{
+			PlayerHUDInstance = CreateWidget<UUserWidget>(PC, PlayerHUDClass);
+
+			if (PlayerHUDInstance)
+			{
+				PlayerHUDInstance->AddToViewport();
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[HUD] PlayerHUDClass is missing. Assign WBP_PlayerHUD in the player Blueprint."));
+		}
 
 		if (ULocalPlayer* LocalPlayer = PC->GetLocalPlayer())
 		{
@@ -129,10 +164,15 @@ void AStealthSandboxCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	AimAtMouseCursor();
-	UpdateEnemyVisibility();
-	UpdatePickupVisibility();
+	// FPS uses mouse-look input instead of cursor aiming.
+	// Keep reload ticking.
 	UpdateReload(DeltaTime);
+
+	// Disable top-down Project Zomboid visibility for FPS.
+	// In FPS, the camera and flashlight naturally control what the player sees.
+	// You can re-enable these later if you want supernatural/perception hiding.
+	// UpdateEnemyVisibility();
+	// UpdatePickupVisibility();
 }
 
 void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -161,6 +201,22 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] MoveAction is missing. Assign IA_Move in BP_ThirdPersonCharacter."));
+	}
+
+	if (LookAction)
+	{
+		EnhancedInput->BindAction(
+			LookAction,
+			ETriggerEvent::Triggered,
+			this,
+			&AStealthSandboxCharacter::Look
+		);
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] LookAction bound."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] LookAction is missing. Assign IA_Look."));
 	}
 
 	if (ShootAction)
@@ -211,51 +267,8 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] InventoryAction is missing. Assign IA_Inventory."));
 	}
 
-	if (CameraRotateHoldAction)
-	{
-		EnhancedInput->BindAction(
-			CameraRotateHoldAction,
-			ETriggerEvent::Started,
-			this,
-			&AStealthSandboxCharacter::StartCameraRotate
-		);
-
-		EnhancedInput->BindAction(
-			CameraRotateHoldAction,
-			ETriggerEvent::Completed,
-			this,
-			&AStealthSandboxCharacter::StopCameraRotate
-		);
-
-		EnhancedInput->BindAction(
-			CameraRotateHoldAction,
-			ETriggerEvent::Canceled,
-			this,
-			&AStealthSandboxCharacter::StopCameraRotate
-		);
-
-		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] CameraRotateHoldAction bound."));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] CameraRotateHoldAction is missing. Assign IA_CameraRotateHold in BP_ThirdPersonCharacter."));
-	}
-
-	if (CameraRotateAction)
-	{
-		EnhancedInput->BindAction(
-			CameraRotateAction,
-			ETriggerEvent::Triggered,
-			this,
-			&AStealthSandboxCharacter::RotateCamera
-		);
-
-		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] CameraRotateAction bound."));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] CameraRotateAction is missing. Assign IA_CameraRotate in BP_ThirdPersonCharacter."));
-	}
+	// Legacy top-down camera rotation actions are intentionally not bound in FPS mode.
+	// Keep the UPROPERTY fields for now so old Blueprints do not break, but they should not drive the camera anymore.
 }
 
 void AStealthSandboxCharacter::StartCameraRotate()
@@ -301,6 +314,11 @@ void AStealthSandboxCharacter::UpdateCameraRotation()
 
 void AStealthSandboxCharacter::Move(const FInputActionValue& Value)
 {
+	if (bInventoryOpen || bIsDead)
+	{
+		return;
+	}
+
 	const FVector2D MoveValue = Value.Get<FVector2D>();
 
 	if (MoveValue.IsNearlyZero())
@@ -308,7 +326,6 @@ void AStealthSandboxCharacter::Move(const FInputActionValue& Value)
 		return;
 	}
 
-	// Movement relative to where the player is currently aiming/facing.
 	FVector Forward = GetActorForwardVector();
 	FVector Right = GetActorRightVector();
 
@@ -320,6 +337,37 @@ void AStealthSandboxCharacter::Move(const FInputActionValue& Value)
 
 	AddMovementInput(Forward, MoveValue.Y);
 	AddMovementInput(Right, MoveValue.X);
+}
+
+void AStealthSandboxCharacter::Look(const FInputActionValue& Value)
+{
+	if (bInventoryOpen || bIsDead)
+	{
+		return;
+	}
+
+	const FVector2D LookValue = Value.Get<FVector2D>();
+
+	if (LookValue.IsNearlyZero())
+	{
+		return;
+	}
+
+	// Mouse X turns the player body left/right.
+	const float NewYaw = GetActorRotation().Yaw + (LookValue.X * MouseSensitivity);
+	SetActorRotation(FRotator(0.0f, NewYaw, 0.0f));
+
+	// Mouse Y tilts only the camera up/down.
+	CurrentPitch = FMath::Clamp(
+		CurrentPitch + (LookValue.Y * MouseSensitivity),
+		MinPitch,
+		MaxPitch
+	);
+
+	if (TopDownCamera)
+	{
+		TopDownCamera->SetRelativeRotation(FRotator(CurrentPitch, 0.0f, 0.0f));
+	}
 }
 
 bool AStealthSandboxCharacter::GetMouseAimPoint(FVector& OutAimPoint) const
@@ -425,27 +473,14 @@ void AStealthSandboxCharacter::Shoot()
 		return;
 	}
 
-	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (!PC)
+	if (!TopDownCamera)
 	{
 		return;
 	}
 
-	FVector AimPoint;
-	if (!GetMouseAimPoint(AimPoint))
-	{
-		return;
-	}
-
-	FVector Direction = AimPoint - GetActorLocation();
-	Direction.Z = 0.0f;
-
-	if (Direction.IsNearlyZero())
-	{
-		return;
-	}
-
-	Direction.Normalize();
+	const FVector Start = TopDownCamera->GetComponentLocation();
+	const FVector Direction = TopDownCamera->GetForwardVector();
+	const FVector End = Start + Direction * ShootRange;
 
 	if (PistolAmmoInMagazine <= 0)
 	{
@@ -465,8 +500,6 @@ void AStealthSandboxCharacter::Shoot()
 		PistolAmmoInInventory
 	);
 
-	const FVector Start = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
-	const FVector End = Start + Direction * ShootRange;
 
 	FHitResult ShotHit;
 	FCollisionQueryParams Params;
@@ -521,17 +554,13 @@ void AStealthSandboxCharacter::Shoot()
 
 void AStealthSandboxCharacter::MeleeAttack()
 {
-	FVector Direction = GetActorForwardVector();
-	Direction.Z = 0.0f;
-
-	if (Direction.IsNearlyZero())
+	if (!TopDownCamera)
 	{
 		return;
 	}
 
-	Direction.Normalize();
-
-	const FVector Start = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
+	const FVector Start = TopDownCamera->GetComponentLocation();
+	const FVector Direction = TopDownCamera->GetForwardVector();
 	const FVector End = Start + Direction * MeleeRange;
 
 	FHitResult Hit;
@@ -579,9 +608,6 @@ void AStealthSandboxCharacter::MeleeAttack()
 		TEXT("[Player] Melee hit enemy for %.1f damage."),
 		MeleeDamage
 	);
-
-	// Important: no hearing event here.
-	// Melee is quiet, so enemies are not alerted by simply pressing left click.
 }
 
 void AStealthSandboxCharacter::ApplyVisionLightSettings()
@@ -591,7 +617,8 @@ void AStealthSandboxCharacter::ApplyVisionLightSettings()
 		return;
 	}
 
-	// Keep all vision tuning in one place so we can quickly tweak it from the Blueprint defaults.
+	// In FPS, the light is attached to the camera, so relative rotation should usually be zero.
+	// VisionPitch is kept as a tweakable offset in case we want the flashlight to lean down slightly.
 	VisionLight->SetIntensity(VisionLightIntensity);
 	VisionLight->SetAttenuationRadius(VisionLightRange);
 	VisionLight->SetInnerConeAngle(VisionInnerConeAngle);
@@ -1069,8 +1096,8 @@ void AStealthSandboxCharacter::CloseInventory()
 
 	if (PC)
 	{
-		// We still want mouse cursor for aiming in this prototype.
-		PC->bShowMouseCursor = true;
+		// FPS mode: hide cursor again and return mouse to camera look.
+		PC->bShowMouseCursor = false;
 
 		FInputModeGameOnly InputMode;
 		PC->SetInputMode(InputMode);

@@ -1,5 +1,5 @@
 
-
+#include "WeaponPickup.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
@@ -7,7 +7,7 @@
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/PlayerCameraManager.h"
-#include "WeaponPickup.h"
+
 
 
 AWeaponPickup::AWeaponPickup()

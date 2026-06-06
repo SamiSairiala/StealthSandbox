@@ -1,3 +1,4 @@
+#include "EnemyGuardCharacter.h"
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraActor.h"
@@ -6,7 +7,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Materials/MaterialInterface.h"
-#include "EnemyGuardCharacter.h"
+
 
 AEnemyGuardCharacter::AEnemyGuardCharacter()
 {

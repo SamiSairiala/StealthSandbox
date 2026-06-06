@@ -152,6 +152,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> InventoryAction;
 
+	// Mouse look for FPS camera control.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+		TObjectPtr<UInputAction> LookAction;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> CameraRotateHoldAction;
 
@@ -220,6 +224,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
 		float AimStopAngle = 1.5f;
 
+	// FPS Look
+	// Mouse sensitivity for FPS camera look.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FPS")
+		float MouseSensitivity = 1.0f;
+
+	// Clamp vertical camera look so the player cannot flip upside down.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FPS")
+		float MinPitch = -80.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FPS")
+		float MaxPitch = 80.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "FPS")
+		float CurrentPitch = 0.0f;
+
 	// Camera Rotation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rotation")
 		float CameraYaw = 0.0f;
@@ -247,19 +266,19 @@ protected:
 
 	// How far the player can see.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionLightRange = 1800.0f;
+		float VisionLightRange = 4500.0f;
 
 	// Bright center of the vision cone.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionInnerConeAngle = 18.0f;
+		float VisionInnerConeAngle = 25.0f;
 
 	// Outer soft edge of the vision cone.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionOuterConeAngle = 38.0f;
+		float VisionOuterConeAngle = 55.0f;
 
 	// Slight downward tilt so the light hits the floor in front of the player.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionPitch = -20.0f;
+		float VisionPitch = 0.0f;
 
 	// Visibility Cone	
 	//
@@ -267,7 +286,7 @@ protected:
 	// If true, enemies outside the player's view cone are hidden.
 	// This gives a Project Zomboid style "you cannot see behind you" effect.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		bool bUseEnemyVisibilityCone = true;
+		bool bUseEnemyVisibilityCone = false;
 
 	// How far the player can see enemies.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
@@ -290,7 +309,7 @@ protected:
 	// If true, pickups are also hidden outside vision.
 	// This makes loot discovery follow the same rules as enemy visibility.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		bool bUsePickupVisibilityCone = true;
+		bool bUsePickupVisibilityCone = false;
 
 	void UpdatePickupVisibility();
 	bool CanSeeActorWithVisionRules(AActor* TargetActor, float MaxDistance) const;
@@ -299,8 +318,10 @@ protected:
 	bool CanSeeEnemy(AActor* EnemyActor) const;
 
 	void ApplyVisionLightSettings();
+	void SanitizePrototypeDefaults();
 
 	void Move(const FInputActionValue& Value);
+	void Look(const FInputActionValue& Value);
 	void Attack();
 	void Shoot();
 	void MeleeAttack();
