@@ -120,6 +120,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 		void CloseInventory();
 
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+		bool HasFocusedInteractable() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+		FText GetInteractionPromptText() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -152,6 +158,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> InventoryAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+		TObjectPtr<UInputAction> InteractAction;
+
 	// Mouse look for FPS camera control.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 		TObjectPtr<UInputAction> LookAction;
@@ -164,7 +173,7 @@ protected:
 
 	// Combat
 
-	
+
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Pistol")
 		float ShootRange = 3000.0f;
@@ -178,7 +187,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Melee")
 		float MeleeDamage = 8.0f;
 
-	
+
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat-Pistol")
 		int32 PistolAmmoInMagazine = 0;
@@ -210,7 +219,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
 		bool bIsDead = false;
 
-	
+
 	// Aiming
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aiming")
 		float AimDeadZone = 150.0f;
@@ -225,11 +234,9 @@ protected:
 		float AimStopAngle = 1.5f;
 
 	// FPS Look
-	// Mouse sensitivity for FPS camera look.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FPS")
 		float MouseSensitivity = 1.0f;
 
-	// Clamp vertical camera look so the player cannot flip upside down.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FPS")
 		float MinPitch = -80.0f;
 
@@ -238,6 +245,13 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "FPS")
 		float CurrentPitch = 0.0f;
+
+	// Interaction
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+		float InteractionRange = 250.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+		TObjectPtr<AActor> FocusedInteractableActor = nullptr;
 
 	// Camera Rotation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rotation")
@@ -266,19 +280,19 @@ protected:
 
 	// How far the player can see.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionLightRange = 4500.0f;
+		float VisionLightRange = 1800.0f;
 
 	// Bright center of the vision cone.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionInnerConeAngle = 25.0f;
+		float VisionInnerConeAngle = 18.0f;
 
 	// Outer soft edge of the vision cone.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionOuterConeAngle = 55.0f;
+		float VisionOuterConeAngle = 38.0f;
 
 	// Slight downward tilt so the light hits the floor in front of the player.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		float VisionPitch = 0.0f;
+		float VisionPitch = -20.0f;
 
 	// Visibility Cone	
 	//
@@ -286,7 +300,7 @@ protected:
 	// If true, enemies outside the player's view cone are hidden.
 	// This gives a Project Zomboid style "you cannot see behind you" effect.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		bool bUseEnemyVisibilityCone = false;
+		bool bUseEnemyVisibilityCone = true;
 
 	// How far the player can see enemies.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
@@ -309,7 +323,7 @@ protected:
 	// If true, pickups are also hidden outside vision.
 	// This makes loot discovery follow the same rules as enemy visibility.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
-		bool bUsePickupVisibilityCone = false;
+		bool bUsePickupVisibilityCone = true;
 
 	void UpdatePickupVisibility();
 	bool CanSeeActorWithVisionRules(AActor* TargetActor, float MaxDistance) const;
@@ -325,6 +339,8 @@ protected:
 	void Attack();
 	void Shoot();
 	void MeleeAttack();
+	void Interact();
+	void UpdateInteractionTrace();
 	void ReloadPistol();
 	void FinishReload();
 	void UpdateReload(float DeltaTime);

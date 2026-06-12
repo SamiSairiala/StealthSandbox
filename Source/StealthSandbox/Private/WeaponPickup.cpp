@@ -23,6 +23,7 @@ AWeaponPickup::AWeaponPickup()
 	PickupCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	PickupCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
 	PickupCollision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	PickupCollision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	PickupMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PickupMesh"));
 	PickupMesh->SetupAttachment(SceneRoot);
@@ -65,17 +66,8 @@ void AWeaponPickup::Tick(float DeltaTime)
 	FaceLabelToCamera();
 }
 
-void AWeaponPickup::OnPickupOverlap(
-	UPrimitiveComponent* OverlappedComponent,
-	AActor* OtherActor,
-	UPrimitiveComponent* OtherComp,
-	int32 OtherBodyIndex,
-	bool bFromSweep,
-	const FHitResult& SweepResult
-)
+void AWeaponPickup::Pickup(AStealthSandboxCharacter* Player)
 {
-	AStealthSandboxCharacter* Player = Cast<AStealthSandboxCharacter>(OtherActor);
-
 	if (!Player)
 	{
 		return;
@@ -91,6 +83,25 @@ void AWeaponPickup::OnPickupOverlap(
 	);
 
 	Destroy();
+}
+
+void AWeaponPickup::OnPickupOverlap(
+	UPrimitiveComponent* OverlappedComponent,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex,
+	bool bFromSweep,
+	const FHitResult& SweepResult
+)
+{
+	/*AStealthSandboxCharacter* Player = Cast<AStealthSandboxCharacter>(OtherActor);
+
+	if (!Player)
+	{
+		return;
+	}
+
+	Pickup(Player);*/
 }
 
 void AWeaponPickup::FaceLabelToCamera()

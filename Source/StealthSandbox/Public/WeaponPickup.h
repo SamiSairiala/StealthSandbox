@@ -7,6 +7,7 @@
 class USphereComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class AStealthSandboxCharacter;
 
 UCLASS()
 class STEALTHSANDBOX_API AWeaponPickup : public AActor
@@ -16,6 +17,9 @@ class STEALTHSANDBOX_API AWeaponPickup : public AActor
 public:
 	AWeaponPickup();
 	virtual void Tick(float DeltaTime) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Pickup")
+		void Pickup(AStealthSandboxCharacter* Player);
 
 protected:
 	virtual void BeginPlay() override;

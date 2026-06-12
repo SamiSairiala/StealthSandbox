@@ -1,22 +1,23 @@
 #include "StealthSandboxCharacter.h"
-
 #include "AI/EnemyGuardCharacter.h"
-#include "Pickups\AmmoPickup.h"
-#include "Blueprint/UserWidget.h"
-#include "Camera/CameraComponent.h"
 #include "Components/SpotLightComponent.h"
-#include "DrawDebugHelpers.h"
-#include "EnhancedInputComponent.h"
-#include "EnhancedInputSubsystems.h"
-#include "GameFramework/CharacterMovementComponent.h"
+#include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "InputActionValue.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Perception/AIPerceptionStimuliSourceComponent.h"
-#include "Perception/AISense_Hearing.h"
-#include "Perception/AISense_Sight.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputActionValue.h"
+#include "AI/EnemyGuardCharacter.h"
+#include "Kismet/GameplayStatics.h"
 #include "WeaponPickup.h"
+#include "DrawDebugHelpers.h"
+#include "Pickups/AmmoPickup.h"
+#include "Blueprint/UserWidget.h"
+#include "Perception/AIPerceptionStimuliSourceComponent.h"
+#include "Perception/AISense_Sight.h"
+#include "Perception/AISense_Hearing.h"
 
 AStealthSandboxCharacter::AStealthSandboxCharacter()
 {
@@ -94,7 +95,6 @@ void AStealthSandboxCharacter::SanitizePrototypeDefaults()
 	}
 }
 
-
 void AStealthSandboxCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -165,8 +165,9 @@ void AStealthSandboxCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// FPS uses mouse-look input instead of cursor aiming.
-	// Keep reload ticking.
+	// Keep reload and interaction tracing ticking.
 	UpdateReload(DeltaTime);
+	UpdateInteractionTrace();
 
 	// Disable top-down Project Zomboid visibility for FPS.
 	// In FPS, the camera and flashlight naturally control what the player sees.
@@ -200,7 +201,7 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] MoveAction is missing. Assign IA_Move in BP_ThirdPersonCharacter."));
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] MoveAction is missing. Assign IA_Move in BP_FPSPlayer."));
 	}
 
 	if (LookAction)
@@ -216,7 +217,7 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] LookAction is missing. Assign IA_Look."));
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] LookAction is missing. Assign IA_Look in BP_FPSPlayer."));
 	}
 
 	if (ShootAction)
@@ -232,7 +233,7 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ShootAction is missing. Assign IA_Shoot in BP_ThirdPersonCharacter."));
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ShootAction is missing. Assign IA_Shoot in BP_FPSPlayer."));
 	}
 
 	if (ReloadAction)
@@ -248,7 +249,7 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ReloadAction is missing. Assign IA_Reload."));
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] ReloadAction is missing. Assign IA_Reload in BP_FPSPlayer."));
 	}
 
 	if (InventoryAction)
@@ -264,7 +265,23 @@ void AStealthSandboxCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] InventoryAction is missing. Assign IA_Inventory."));
+		UE_LOG(LogTemp, Error, TEXT("[PlayerInput] InventoryAction is missing. Assign IA_Inventory in BP_FPSPlayer."));
+	}
+
+	if (InteractAction)
+	{
+		EnhancedInput->BindAction(
+			InteractAction,
+			ETriggerEvent::Started,
+			this,
+			&AStealthSandboxCharacter::Interact
+		);
+
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] InteractAction bound."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerInput] InteractAction is missing. Assign IA_Interact in BP_FPSPlayer."));
 	}
 
 	// Legacy top-down camera rotation actions are intentionally not bound in FPS mode.
@@ -1105,3 +1122,116 @@ void AStealthSandboxCharacter::CloseInventory()
 
 	UE_LOG(LogTemp, Warning, TEXT("[Inventory] Closed."));
 }
+
+
+void AStealthSandboxCharacter::UpdateInteractionTrace()
+{
+	if (bIsDead || bInventoryOpen || !TopDownCamera)
+	{
+		FocusedInteractableActor = nullptr;
+		return;
+	}
+
+	const FVector Start = TopDownCamera->GetComponentLocation();
+	const FVector End = Start + (TopDownCamera->GetForwardVector() * InteractionRange);
+
+	TArray<FHitResult> Hits;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	// Interaction should look for dynamic interactable actors, not world geometry.
+	// This avoids the floor/walls blocking the pickup trace first.
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+	const bool bHit = GetWorld()->LineTraceMultiByObjectType(
+		Hits,
+		Start,
+		End,
+		ObjectParams,
+		Params
+	);
+
+	if (!bHit)
+	{
+		FocusedInteractableActor = nullptr;
+		return;
+	}
+
+	for (const FHitResult& Hit : Hits)
+	{
+		AActor* HitActor = Hit.GetActor();
+
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[Interaction] Object trace hit actor: %s | component: %s"),
+			*GetNameSafe(HitActor),
+			*GetNameSafe(Hit.GetComponent())
+		);
+
+		if (HitActor && (HitActor->IsA(AWeaponPickup::StaticClass()) || HitActor->IsA(AAmmoPickup::StaticClass())))
+		{
+			FocusedInteractableActor = HitActor;
+			return;
+		}
+	}
+
+	FocusedInteractableActor = nullptr;
+}
+
+void AStealthSandboxCharacter::Interact()
+{
+	if (bIsDead || bInventoryOpen)
+	{
+		return;
+	}
+
+	UpdateInteractionTrace();
+
+	if (!FocusedInteractableActor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Interaction] Nothing to interact with."));
+		return;
+	}
+
+	if (AWeaponPickup* WeaponPickup = Cast<AWeaponPickup>(FocusedInteractableActor))
+	{
+		WeaponPickup->Pickup(this);
+		FocusedInteractableActor = nullptr;
+		return;
+	}
+
+	if (AAmmoPickup* AmmoPickup = Cast<AAmmoPickup>(FocusedInteractableActor))
+	{
+		AmmoPickup->Pickup(this);
+		FocusedInteractableActor = nullptr;
+		return;
+	}
+}
+
+bool AStealthSandboxCharacter::HasFocusedInteractable() const
+{
+	return FocusedInteractableActor != nullptr;
+}
+
+FText AStealthSandboxCharacter::GetInteractionPromptText() const
+{
+	if (!FocusedInteractableActor)
+	{
+		return FText::GetEmpty();
+	}
+
+	if (FocusedInteractableActor->IsA(AWeaponPickup::StaticClass()))
+	{
+		return FText::FromString(TEXT("Press E to pick up Pistol"));
+	}
+
+	if (FocusedInteractableActor->IsA(AAmmoPickup::StaticClass()))
+	{
+		return FText::FromString(TEXT("Press E to pick up Ammo"));
+	}
+
+	return FText::FromString(TEXT("Press E to interact"));
+}
+

@@ -17,10 +17,11 @@ AAmmoPickup::AAmmoPickup()
 
 	PickupCollision = CreateDefaultSubobject<USphereComponent>(TEXT("PickupCollision"));
 	PickupCollision->SetupAttachment(SceneRoot);
-	PickupCollision->SetSphereRadius(85.0f);
+	PickupCollision->SetSphereRadius(130.0f);
 	PickupCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	PickupCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
 	PickupCollision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	PickupCollision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	PickupMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PickupMesh"));
 	PickupMesh->SetupAttachment(SceneRoot);
@@ -75,17 +76,8 @@ void AAmmoPickup::Tick(float DeltaTime)
 	FaceLabelToCamera();
 }
 
-void AAmmoPickup::OnPickupOverlap(
-	UPrimitiveComponent* OverlappedComponent,
-	AActor* OtherActor,
-	UPrimitiveComponent* OtherComp,
-	int32 OtherBodyIndex,
-	bool bFromSweep,
-	const FHitResult& SweepResult
-)
+void AAmmoPickup::Pickup(AStealthSandboxCharacter* Player)
 {
-	AStealthSandboxCharacter* Player = Cast<AStealthSandboxCharacter>(OtherActor);
-
 	if (!Player)
 	{
 		return;
@@ -101,6 +93,25 @@ void AAmmoPickup::OnPickupOverlap(
 	);
 
 	Destroy();
+}
+
+void AAmmoPickup::OnPickupOverlap(
+	UPrimitiveComponent* OverlappedComponent,
+	AActor* OtherActor,
+	UPrimitiveComponent* OtherComp,
+	int32 OtherBodyIndex,
+	bool bFromSweep,
+	const FHitResult& SweepResult
+)
+{
+	/*AStealthSandboxCharacter* Player = Cast<AStealthSandboxCharacter>(OtherActor);
+
+	if (!Player)
+	{
+		return;
+	}
+
+	Pickup(Player);*/
 }
 
 void AAmmoPickup::FaceLabelToCamera()
