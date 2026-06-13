@@ -656,6 +656,12 @@ void AStealthSandboxCharacter::TakeDamageFromEnemy(float DamageAmount)
 	CurrentHealth -= DamageAmount;
 	CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
 
+	ShowFeedbackMessage(
+		FText::FromString(
+			FString::Printf(TEXT("Took %.0f damage"), DamageAmount)
+		)
+	);
+
 	UE_LOG(
 		LogTemp,
 		Warning,
