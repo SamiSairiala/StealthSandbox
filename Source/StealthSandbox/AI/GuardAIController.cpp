@@ -8,6 +8,8 @@
 #include "EnemyGuardCharacter.h"
 #include "../StealthSandboxCharacter.h" // This ../ before means it go up one folder from AI then find StealthSandboxCharacter.h
 #include "PatrolPoint.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
 
 AGuardAIController::AGuardAIController()
@@ -85,6 +87,16 @@ void AGuardAIController::Tick(float DeltaTime)
 	if (AttackCooldownTimer > 0.0f)
 	{
 		AttackCooldownTimer -= DeltaTime;
+	}
+
+	if (AttackRootTimer > 0.0f)
+	{
+		AttackRootTimer -= DeltaTime;
+
+		if (AttackRootTimer < 0.0f)
+		{
+			AttackRootTimer = 0.0f;
+		}
 	}
 
 	// AI Perception events only fire when perception changes.
@@ -439,13 +451,22 @@ void AGuardAIController::HandleAlertState()
 
 	if (PlayerTarget && PlayerTarget->IsDead())
 	{
-		StopMovement();
+		StopAttackMovement();
+		return;
+	}
+
+	// If the enemy has just attacked, keep it rooted briefly.
+	// This stops sliding/pushing into the player during the attack moment.
+	if (AttackRootTimer > 0.0f)
+	{
+		StopAttackMovement();
+		FaceTarget(CurrentTargetActor);
 		return;
 	}
 
 	if (IsTargetInAttackRange())
 	{
-		StopMovement();
+		StopAttackMovement();
 		FaceTarget(CurrentTargetActor);
 		TryAttackTarget();
 		return;
@@ -1388,6 +1409,8 @@ void AGuardAIController::TryAttackTarget()
 	}
 
 	AttackCooldownTimer = AttackCooldown;
+	AttackRootTimer = AttackRootDuration;
+	StopAttackMovement();
 
 	UE_LOG(
 		LogTemp,
@@ -1423,5 +1446,27 @@ void AGuardAIController::FaceTarget(AActor* TargetActor)
 
 	const FRotator TargetRotation = Direction.Rotation();
 	ControlledPawn->SetActorRotation(FRotator(0.0f, TargetRotation.Yaw, 0.0f));
+}
+
+void AGuardAIController::StopAttackMovement()
+{
+	// Stop AI path following.
+	StopMovement();
+
+	APawn* ControlledPawn = GetPawn();
+
+	if (!ControlledPawn)
+	{
+		return;
+	}
+
+	// Stop leftover character movement velocity too.
+	if (ACharacter* ControlledCharacter = Cast<ACharacter>(ControlledPawn))
+	{
+		if (UCharacterMovementComponent* MovementComp = ControlledCharacter->GetCharacterMovement())
+		{
+			MovementComp->StopMovementImmediately();
+		}
+	}
 }
 

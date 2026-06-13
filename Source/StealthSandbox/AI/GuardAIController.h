@@ -161,7 +161,16 @@ protected:
 
 	// Counts down while the enemy is waiting for the next attack.
 	UPROPERTY(BlueprintReadOnly, Category = "AI-Attack")
-		float AttackCooldownTimer = 0.0f;
+		float AttackCooldownTimer = 1.20f;
+
+	// How long the enemy is locked in place after attacking.
+	// This prevents sliding/pushing forward during the attack moment.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI-Attack")
+		float AttackRootDuration = 0.45f;
+
+	// Counts down while the enemy is rooted by an attack.
+	UPROPERTY(BlueprintReadOnly, Category = "AI-Attack")
+		float AttackRootTimer = 0.0f;
 
 	// How close the enemy tries to get when chasing before attacking.
 	// This should be smaller than AttackRange so the enemy does not stop too early.
@@ -256,7 +265,7 @@ protected:
 	void HandleAlertState();
 	void HandleInvestigateState();
 	void HandleSearchState(float DeltaTime);
-
+	void StopAttackMovement();
 	void MoveToLastKnownLocation();
 
 	void HandlePatrolState(float DeltaTime);
