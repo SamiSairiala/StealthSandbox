@@ -164,14 +164,10 @@ void AStealthSandboxCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// FPS uses mouse-look input instead of cursor aiming.
-	// Keep reload and interaction tracing ticking.
 	UpdateReload(DeltaTime);
+	UpdateFeedbackMessage(DeltaTime);
 	UpdateInteractionTrace();
 
-	// Disable top-down Project Zomboid visibility for FPS.
-	// In FPS, the camera and flashlight naturally control what the player sees.
-	// You can re-enable these later if you want supernatural/perception hiding.
 	// UpdateEnemyVisibility();
 	// UpdatePickupVisibility();
 }
@@ -486,6 +482,7 @@ void AStealthSandboxCharacter::Shoot()
 {
 	if (bIsReloading)
 	{
+		ShowFeedbackMessage(FText::FromString(TEXT("Reloading...")));
 		UE_LOG(LogTemp, Warning, TEXT("[Player] Cannot shoot while reloading."));
 		return;
 	}
@@ -501,6 +498,7 @@ void AStealthSandboxCharacter::Shoot()
 
 	if (PistolAmmoInMagazine <= 0)
 	{
+		ShowFeedbackMessage(FText::FromString(TEXT("Pistol empty")));
 		UE_LOG(LogTemp, Warning, TEXT("[Player] Pistol empty. Trying reload."));
 		ReloadPistol(); // Auto reload.
 		return;
@@ -862,6 +860,7 @@ void AStealthSandboxCharacter::ReloadPistol()
 
 	if (!bHasPistol || !bPistolEquipped)
 	{
+		ShowFeedbackMessage(FText::FromString(TEXT("No pistol equipped")));
 		UE_LOG(LogTemp, Warning, TEXT("[Player] Cannot reload: no pistol equipped."));
 		return;
 	}
@@ -873,18 +872,22 @@ void AStealthSandboxCharacter::ReloadPistol()
 
 	if (PistolAmmoInMagazine >= PistolMagazineSize)
 	{
+		ShowFeedbackMessage(FText::FromString(TEXT("Magazine full")));
 		UE_LOG(LogTemp, Warning, TEXT("[Player] Magazine already full."));
 		return;
 	}
 
 	if (PistolAmmoInInventory <= 0)
 	{
+		ShowFeedbackMessage(FText::FromString(TEXT("No reserve ammo")));
 		UE_LOG(LogTemp, Warning, TEXT("[Player] No reserve ammo."));
 		return;
 	}
 
 	bIsReloading = true;
 	ReloadTimer = ReloadTime;
+
+	ShowFeedbackMessage(FText::FromString(TEXT("Reloading...")));
 
 	UE_LOG(LogTemp, Warning, TEXT("[Player] Reloading pistol..."));
 }
@@ -920,6 +923,8 @@ void AStealthSandboxCharacter::FinishReload()
 	PistolAmmoInMagazine += AmmoToLoad;
 	PistolAmmoInInventory -= AmmoToLoad;
 
+	ShowFeedbackMessage(FText::FromString(TEXT("Reload complete")));
+
 	UE_LOG(
 		LogTemp,
 		Warning,
@@ -941,6 +946,8 @@ void AStealthSandboxCharacter::GivePistol(int32 StartingAmmo, bool bAutoEquip)
 
 	AddPistolAmmo(StartingAmmo);
 
+	ShowFeedbackMessage(FText::FromString(TEXT("Picked up Pistol")));
+
 	UE_LOG(
 		LogTemp,
 		Warning,
@@ -957,6 +964,12 @@ void AStealthSandboxCharacter::AddPistolAmmo(int32 AmmoAmount)
 	}
 
 	PistolAmmoInInventory += AmmoAmount;
+
+	ShowFeedbackMessage(
+		FText::FromString(
+			FString::Printf(TEXT("Picked up Ammo +%d"), AmmoAmount)
+		)
+	);
 
 	UE_LOG(
 		LogTemp,
@@ -1233,5 +1246,37 @@ FText AStealthSandboxCharacter::GetInteractionPromptText() const
 	}
 
 	return FText::FromString(TEXT("Press E to interact"));
+}
+
+void AStealthSandboxCharacter::ShowFeedbackMessage(const FText& Message)
+{
+	FeedbackMessage = Message;
+	FeedbackMessageTimer = FeedbackMessageDuration;
+}
+
+void AStealthSandboxCharacter::UpdateFeedbackMessage(float DeltaTime)
+{
+	if (FeedbackMessageTimer <= 0.0f)
+	{
+		return;
+	}
+
+	FeedbackMessageTimer -= DeltaTime;
+
+	if (FeedbackMessageTimer <= 0.0f)
+	{
+		FeedbackMessageTimer = 0.0f;
+		FeedbackMessage = FText::GetEmpty();
+	}
+}
+
+FText AStealthSandboxCharacter::GetFeedbackMessageText() const
+{
+	return FeedbackMessage;
+}
+
+bool AStealthSandboxCharacter::HasFeedbackMessage() const
+{
+	return !FeedbackMessage.IsEmpty() && FeedbackMessageTimer > 0.0f;
 }
 

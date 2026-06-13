@@ -97,6 +97,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "HUD")
 		TSubclassOf<UUserWidget> PlayerHUDClass;
 
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		FText GetFeedbackMessageText() const;
+
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		bool HasFeedbackMessage() const;
+
 	UPROPERTY()
 		TObjectPtr<UUserWidget> PlayerHUDInstance;
 
@@ -125,6 +131,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 		FText GetInteractionPromptText() const;
+
+
 
 protected:
 	virtual void BeginPlay() override;
@@ -325,6 +333,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Vision")
 		bool bUsePickupVisibilityCone = true;
 
+	// Temporary HUD feedback message.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HUD Feedback")
+		FText FeedbackMessage;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HUD Feedback")
+		float FeedbackMessageTimer = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD Feedback")
+		float FeedbackMessageDuration = 2.0f;
+
 	void UpdatePickupVisibility();
 	bool CanSeeActorWithVisionRules(AActor* TargetActor, float MaxDistance) const;
 
@@ -345,6 +363,8 @@ protected:
 	void FinishReload();
 	void UpdateReload(float DeltaTime);
 	void AimAtMouseCursor();
+	void ShowFeedbackMessage(const FText& Message);
+	void UpdateFeedbackMessage(float DeltaTime);
 
 	void StartCameraRotate();
 	void StopCameraRotate();
