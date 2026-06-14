@@ -103,6 +103,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HUD")
 		bool HasFeedbackMessage() const;
 
+	UFUNCTION(BlueprintCallable, Category = "HUD")
+		float GetDamageFlashAlpha() const;
+
 	UPROPERTY()
 		TObjectPtr<UUserWidget> PlayerHUDInstance;
 
@@ -343,6 +346,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD Feedback")
 		float FeedbackMessageDuration = 2.0f;
 
+	// Red screen flash when the player takes damage.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HUD Damage Flash")
+		float DamageFlashTimer = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD Damage Flash")
+		float DamageFlashDuration = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HUD Damage Flash")
+		float DamageFlashMaxAlpha = 0.45f;
+
 	void UpdatePickupVisibility();
 	bool CanSeeActorWithVisionRules(AActor* TargetActor, float MaxDistance) const;
 
@@ -365,6 +378,9 @@ protected:
 	void AimAtMouseCursor();
 	void ShowFeedbackMessage(const FText& Message);
 	void UpdateFeedbackMessage(float DeltaTime);
+
+	void TriggerDamageFlash();
+	void UpdateDamageFlash(float DeltaTime);
 
 	void StartCameraRotate();
 	void StopCameraRotate();

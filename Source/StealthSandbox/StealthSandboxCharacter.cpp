@@ -166,6 +166,7 @@ void AStealthSandboxCharacter::Tick(float DeltaTime)
 
 	UpdateReload(DeltaTime);
 	UpdateFeedbackMessage(DeltaTime);
+	UpdateDamageFlash(DeltaTime);
 	UpdateInteractionTrace();
 
 	// UpdateEnemyVisibility();
@@ -655,6 +656,8 @@ void AStealthSandboxCharacter::TakeDamageFromEnemy(float DamageAmount)
 
 	CurrentHealth -= DamageAmount;
 	CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
+
+	TriggerDamageFlash();
 
 	ShowFeedbackMessage(
 		FText::FromString(
@@ -1284,5 +1287,36 @@ FText AStealthSandboxCharacter::GetFeedbackMessageText() const
 bool AStealthSandboxCharacter::HasFeedbackMessage() const
 {
 	return !FeedbackMessage.IsEmpty() && FeedbackMessageTimer > 0.0f;
+}
+
+void AStealthSandboxCharacter::TriggerDamageFlash()
+{
+	DamageFlashTimer = DamageFlashDuration;
+}
+
+void AStealthSandboxCharacter::UpdateDamageFlash(float DeltaTime)
+{
+	if (DamageFlashTimer <= 0.0f)
+	{
+		return;
+	}
+
+	DamageFlashTimer -= DeltaTime;
+
+	if (DamageFlashTimer < 0.0f)
+	{
+		DamageFlashTimer = 0.0f;
+	}
+}
+
+float AStealthSandboxCharacter::GetDamageFlashAlpha() const
+{
+	if (DamageFlashDuration <= 0.0f || DamageFlashTimer <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	const float NormalizedTime = DamageFlashTimer / DamageFlashDuration;
+	return NormalizedTime * DamageFlashMaxAlpha;
 }
 
